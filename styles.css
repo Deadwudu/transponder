@@ -71,6 +71,25 @@ body {
   min-height: 500px;
 }
 
+.credits-note {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(38, 48, 77, 0.8);
+  border-radius: 10px;
+  background: rgba(18, 23, 38, 0.6);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.credits-note p {
+  margin: 0;
+}
+
+.credits-note p + p {
+  margin-top: 4px;
+}
+
 .terminal-output {
   flex: 1;
   overflow-y: auto;
