@@ -20,7 +20,8 @@ const state = {
   mini1Code: "",
   mini2Sequence: [],
   mini2Step: 0,
-  mini3Target: 0,
+  mini3Needle: "",
+  mini3Packets: [],
   mini4Word: "",
   mini5Needle: "",
   mini5Channels: [],
@@ -216,7 +217,10 @@ function clearMiniState(miniKey) {
     state.mini2Sequence = [];
     state.mini2Step = 0;
   }
-  if (miniKey === "mini3") state.mini3Target = 0;
+  if (miniKey === "mini3") {
+    state.mini3Needle = "";
+    state.mini3Packets = [];
+  }
   if (miniKey === "mini4") state.mini4Word = "";
   if (miniKey === "mini5") {
     state.mini5Needle = "";
@@ -275,6 +279,7 @@ function registerMiniSuccess(miniKey, points) {
   meta.done[miniKey] = true;
   state.errorCounts[miniKey] = 0;
   state.activeMini = "";
+  playActivity(`${miniKey.toUpperCase()} POST`);
   clearMiniState(miniKey);
   gain(points);
 }
@@ -364,9 +369,22 @@ function startMini2() {
 function startMini3() {
   state.activeMini = "mini3";
   playActivity("MINI #3");
-  state.mini3Target = Math.floor(Math.random() * 40) + 60;
+  const packets = [];
+  while (packets.length < 6) {
+    const id = `pkt-${Math.floor(Math.random() * 900) + 100}`;
+    if (!packets.find((p) => p.id === id)) {
+      packets.push({
+        id,
+        drift: Math.floor(Math.random() * 25) + 2,
+      });
+    }
+  }
+  const badIndex = Math.floor(Math.random() * packets.length);
+  packets[badIndex].drift = Math.floor(Math.random() * 4);
+  state.mini3Needle = packets[badIndex].id.toLowerCase();
+  state.mini3Packets = packets.map((p) => p.id.toLowerCase());
   writeLine("MINI #3 :: Контрольная сумма", "success");
-  writeLine(`Найди остаток от деления ${state.mini3Target} на 7.`, "system");
+  writeLine(packets.map((p) => `${p.id} drift:${p.drift}%`).join(" | "), "system");
 }
 
 function startMini4() {
@@ -612,7 +630,7 @@ function printHelp() {
   if (!allDone(state.firstStageDone)) {
     const remaining = FIRST_STAGE_MINI.filter((k) => !state.firstStageDone[k]).join(", ");
     writeLine(`Что делать сейчас: пройти мини-игры этапа 1 (${remaining})`, "success");
-    writeLine("Формат этапа 1: decode <code>, pulse <digit>, checksum <num>, align <word>, scan <channel>, findch <value>, findsector <value>", "system");
+    writeLine("Формат этапа 1: decode <code>, pulse <digit>, checksum <packet-id>, align <word>, scan <channel>, findch <value>, findsector <value>", "system");
     writeLine("После прохождения: breach", "system");
     return;
   }
@@ -938,15 +956,20 @@ function handleCommand(raw) {
 
   if (lower.startsWith("checksum ")) {
     if (!canStartMini("mini3")) return;
-    if (!state.mini3Target) return writeLine("Сначала запусти mini3.", "error");
-    const answer = Number(cmd.slice(9).trim());
-    if (answer === state.mini3Target % 7) {
+    if (!state.mini3Needle) return writeLine("Сначала запусти mini3.", "error");
+    const answer = cmd.slice(9).trim().toLowerCase();
+    if (!state.mini3Packets.includes(answer)) {
+      writeLine("Нет такого packet-id в списке mini3.", "error");
+      return;
+    }
+    if (answer === state.mini3Needle) {
       registerMiniSuccess("mini3", 15);
       playMiniSuccessNoise("mini3");
       writeLine("MINI #3 пройдена.", "success");
     } else {
       if (!registerMiniError("mini3")) {
-        state.mini3Target = 0;
+        state.mini3Needle = "";
+        state.mini3Packets = [];
         writeLine("Неверно, перезапусти mini3.", "error");
       }
     }
