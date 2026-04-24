@@ -40,8 +40,8 @@ const state = {
   mini9Needle: "",
   mini9Blocks: {},
   mini10Needle: "",
-  mini10Relays: [],
-  mini10Load: {},
+  mini10Target: [],
+  mini10Variants: {},
   ipMini1Code: "",
   ipMini1Keys: [],
   ipMini1Scanned: {},
@@ -273,8 +273,8 @@ function clearMiniState(miniKey) {
   }
   if (miniKey === "mini10") {
     state.mini10Needle = "";
-    state.mini10Relays = [];
-    state.mini10Load = {};
+    state.mini10Target = [];
+    state.mini10Variants = {};
   }
   if (miniKey === "ipmini1") state.ipMini1Code = "";
   if (miniKey === "ipmini1") {
@@ -562,26 +562,34 @@ function startMini9() {
 function startMini10() {
   state.activeMini = "mini10";
   playActivity("MINI #10");
-  const relays = [];
-  while (relays.length < 6) {
-    const relay = `rl-${randomCode(3, "ABCDEFGH")}`;
-    if (!relays.includes(relay)) relays.push(relay);
+  const target = Array.from({ length: 6 }, () => Math.floor(Math.random() * 9) + 1);
+  const names = [];
+  while (names.length < 4) {
+    const nm = `arr-${randomCode(3, "ABCDEFGH")}`;
+    if (!names.includes(nm)) names.push(nm);
   }
-  state.mini10Relays = relays;
-  state.mini10Load = {};
-  let best = relays[0];
-  let bestLoad = 999;
-  relays.forEach((r) => {
-    const load = Math.floor(Math.random() * 70) + 15;
-    state.mini10Load[r.toLowerCase()] = load;
-    if (load < bestLoad) {
-      bestLoad = load;
-      best = r;
+  const correctName = randomFrom(names);
+  const variants = {};
+  names.forEach((name) => {
+    if (name === correctName) {
+      variants[name] = [...target];
+      return;
     }
+    const arr = [...target];
+    const idx = Math.floor(Math.random() * arr.length);
+    let replacement = Math.floor(Math.random() * 9) + 1;
+    while (replacement === arr[idx]) replacement = Math.floor(Math.random() * 9) + 1;
+    arr[idx] = replacement;
+    variants[name] = arr;
   });
-  state.mini10Needle = best.toLowerCase();
-  writeLine("MINI #10 :: Привязка реле", "success");
-  writeLine(`Релейная сетка: ${relays.join(", ")}`, "system");
+  state.mini10Target = target;
+  state.mini10Variants = variants;
+  state.mini10Needle = correctName.toLowerCase();
+  writeLine("MINI #10 :: Сверка массивов", "success");
+  writeLine(`TARGET: [${target.join(", ")}]`, "system");
+  names.forEach((name) => {
+    writeLine(`${name}: [${variants[name].join(", ")}]`, "system");
+  });
 }
 
 function startIpMini1() {
@@ -748,7 +756,7 @@ function listDirectory(path) {
 function printHelp() {
   writeLine("Linux-подобные команды: help, status, clear, pwd, ls, ls -la, cd, cat, tree, whoami, uname", "success");
   writeLine("Игровые команды: scan, connect, mini1..mini10, breach, hack ip, ipmini1..ipmini6", "system");
-  writeLine("Ответы мини-игр: decode, pulse, checksum, align, scan <target>, findch, findsector, trace, audit, stabilize, dump, extract, check, bind, unlock, route, mask, probe <coord>, crack, finduser, findfile", "system");
+  writeLine("Ответы мини-игр: decode, pulse, checksum, align, scan <target>, findch, findsector, trace, audit, stabilize, dump, extract, matcharr, unlock, route, mask, probe <coord>, crack, finduser, findfile", "system");
   writeLine("Правило: мини-игры идут строго по порядку. 5 ошибок в одной мини-игре = откат на предыдущую.", "system");
 
   if (!state.scanComplete) {
@@ -774,7 +782,7 @@ function printHelp() {
       mini7: "Найди скрытый trace-токен в сервисном потоке.",
       mini8: "Проверяй демоны через audit и фиксируй лучший.",
       mini9: "Извлеки ключ из дампов блоков.",
-      mini10: "Сверь релейные метрики и закрепи верный bind.",
+      mini10: "Сверь TARGET и массивы кандидатов, затем укажи имя совпавшего.",
     };
     if (current) writeLine(`Подсказка текущей игры: ${hints[current]}`, "system");
     writeLine("После прохождения: breach", "system");
@@ -1257,19 +1265,9 @@ function handleCommand(raw) {
     return;
   }
 
-  if (lower.startsWith("check ")) {
+  if (lower.startsWith("matcharr ")) {
     if (!canStartMini("mini10")) return;
-    const relay = cmd.slice(6).trim().toLowerCase();
-    if (!state.mini10Needle) return writeLine("Сначала запусти mini10.", "error");
-    const match = state.mini10Relays.find((r) => r.toLowerCase() === relay);
-    if (!match) return writeLine("Реле не найдено.", "error");
-    writeLine(`${match} :: load=${state.mini10Load[match.toLowerCase()]}%`, "system");
-    return;
-  }
-
-  if (lower.startsWith("bind ")) {
-    if (!canStartMini("mini10")) return;
-    const val = cmd.slice(5).trim().toLowerCase();
+    const val = cmd.slice(9).trim().toLowerCase();
     if (!state.mini10Needle) return writeLine("Сначала запусти mini10.", "error");
     if (val === state.mini10Needle) {
       registerMiniSuccess("mini10", 20);
@@ -1277,9 +1275,9 @@ function handleCommand(raw) {
       writeLine("MINI #10 пройдена.", "success");
     } else if (!registerMiniError("mini10")) {
       state.mini10Needle = "";
-      state.mini10Relays = [];
-      state.mini10Load = {};
-      writeLine("Привязка реле не выполнена.", "error");
+      state.mini10Target = [];
+      state.mini10Variants = {};
+      writeLine("Сверка массивов не совпала.", "error");
     }
     return;
   }
