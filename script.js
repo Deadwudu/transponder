@@ -5,7 +5,7 @@ const phaseBadge = document.getElementById("phaseBadge");
 const scoreBadge = document.getElementById("scoreBadge");
 const promptLabel = document.getElementById("promptLabel");
 
-const FIRST_STAGE_MINI = ["mini1", "mini2", "mini3", "mini4", "mini5", "mini6", "mini7", "mini8", "mini9", "mini10"];
+const FIRST_STAGE_MINI = ["mini1", "mini2", "mini3", "mini4", "mini5"];
 const IP_STAGE_MINI = ["ipmini1", "ipmini2", "ipmini3", "ipmini4", "ipmini5", "ipmini6"];
 
 const state = {
@@ -18,6 +18,10 @@ const state = {
   ipAccessGranted: false,
   finalDone: false,
   firstStageSelected: [],
+  chainSig: "",
+  chainPulse: "",
+  chainPacket: "",
+  chainAlign: "",
   mini1Code: "",
   mini2Sequence: [],
   mini2Step: 0,
@@ -227,6 +231,12 @@ function pickUnique(arr, count) {
   return copy.slice(0, count);
 }
 
+function mapDigitToAH(ch) {
+  const d = Number(ch);
+  if (Number.isNaN(d)) return "A";
+  return "ABCDEFGH"[d % 8];
+}
+
 function allDone(pool) {
   return Object.values(pool).every(Boolean);
 }
@@ -403,8 +413,13 @@ function startMini2() {
   state.activeMini = "mini2";
   playActivity("MINI #2");
   state.mini2Sequence = Array.from({ length: 4 }, () => Math.floor(Math.random() * 9) + 1);
+  if (state.chainSig.length >= 2) {
+    state.mini2Sequence[0] = (state.chainSig.charCodeAt(0) % 9) + 1;
+    state.mini2Sequence[1] = (state.chainSig.charCodeAt(1) % 9) + 1;
+  }
   state.mini2Step = 0;
   writeLine("MINI #2 :: Синхронизация импульсов", "success");
+  writeLine("[SYNC] seed vector locked from previous signature", "system");
   writeLine(`Последовательность: ${state.mini2Sequence.join(" ")}`, "system");
 }
 
@@ -422,6 +437,8 @@ function startMini3() {
     }
   }
   const badIndex = Math.floor(Math.random() * packets.length);
+  const pulsePrefix = state.chainPulse || String(Math.floor(Math.random() * 9) + 1);
+  packets[badIndex].id = `pkt-${pulsePrefix}${Math.floor(Math.random() * 90) + 10}`;
   packets[badIndex].drift = Math.floor(Math.random() * 4);
   state.mini3Needle = packets[badIndex].id.toLowerCase();
   state.mini3Packets = packets.map((p) => p.id.toLowerCase());
@@ -432,7 +449,9 @@ function startMini3() {
 function startMini4() {
   state.activeMini = "mini4";
   playActivity("MINI #4");
-  state.mini4Word = randomCode(4, "ABCDEFGH");
+  const packetFragment = (state.chainPacket || randomCode(3, "0123456789")).slice(0, 2);
+  const mapped = `${mapDigitToAH(packetFragment[0])}${mapDigitToAH(packetFragment[1])}`;
+  state.mini4Word = `${randomCode(2, "ABCDEFGH")}${mapped}`;
   writeLine("MINI #4 :: Калибровка антенны", "success");
   writeLine("[ANT] sweep vector locked", "system");
   writeLine("[ANT] phase shift compensation enabled", "system");
@@ -462,8 +481,15 @@ function startMini5() {
       weakest = ch;
     }
   });
+  if (state.chainAlign.length >= 2) {
+    weakest = `rf-${state.chainAlign.toUpperCase()}${Math.floor(Math.random() * 10)}`;
+    channels[0] = weakest;
+    state.mini5Integrity[weakest] = 12;
+    state.mini5Scanned[weakest] = false;
+  }
   state.mini5Needle = weakest;
   writeLine("MINI #5 :: Поиск уязвимого канала", "success");
+  writeLine("[RF] correlation key received from alignment stage", "system");
   writeLine(`Список каналов: ${channels.join(", ")}`, "system");
 }
 
@@ -755,8 +781,8 @@ function listDirectory(path) {
 
 function printHelp() {
   writeLine("Linux-подобные команды: help, status, clear, pwd, ls, ls -la, cd, cat, tree, whoami, uname", "success");
-  writeLine("Игровые команды: scan, connect, mini1..mini10, breach, hack ip, ipmini1..ipmini6", "system");
-  writeLine("Ответы мини-игр: decode, pulse, checksum, align, scan <target>, findch, findsector, trace, audit, stabilize, dump, extract, matcharr, unlock, route, mask, probe <coord>, crack, finduser, findfile", "system");
+  writeLine("Игровые команды: scan, connect, mini1..mini5, breach, hack ip, ipmini1..ipmini6", "system");
+  writeLine("Ответы мини-игр: decode, pulse, checksum, align, scan <target>, findch, unlock, route, mask, probe <coord>, crack, finduser, findfile", "system");
   writeLine("Правило: мини-игры идут строго по порядку. 5 ошибок в одной мини-игре = откат на предыдущую.", "system");
 
   if (!state.scanComplete) {
@@ -774,15 +800,10 @@ function printHelp() {
     writeLine(`Активные мини-игры этой сессии: ${state.firstStageSelected.join(", ")}`, "system");
     const hints = {
       mini1: "В сигнальных строках есть ключ, который нужно декодировать.",
-      mini2: "Импульсы нужно провести в правильном порядке.",
-      mini3: "Ищи аномальный packet-id с критическим drift.",
-      mini4: "В антенном шуме спрятан код для выравнивания.",
-      mini5: "Слабый канал можно определить по диагностике scan.",
-      mini6: "Нужный сектор вычисляется через серию scan.",
-      mini7: "Найди скрытый trace-токен в сервисном потоке.",
-      mini8: "Проверяй демоны через audit и фиксируй лучший.",
-      mini9: "Извлеки ключ из дампов блоков.",
-      mini10: "Сверь TARGET и массивы кандидатов, затем укажи имя совпавшего.",
+      mini2: "Импульсы идут по seed из первой игры; удерживай правильный порядок.",
+      mini3: "Ищи аномальный packet-id: след из прошлой игры спрятан в идентификаторах.",
+      mini4: "Код связан с packet-id предыдущей игры; считай шум антенны внимательно.",
+      mini5: "Слабый канал совпадает с ключом из выравнивания, scan помогает подтвердить.",
     };
     if (current) writeLine(`Подсказка текущей игры: ${hints[current]}`, "system");
     writeLine("После прохождения: breach", "system");
@@ -938,7 +959,11 @@ function handleFilesystem(cmd, lower) {
 
 function bootMessage() {
   state.clientsData = buildClientsData();
-  state.firstStageSelected = pickUnique(FIRST_STAGE_MINI, 5);
+  state.firstStageSelected = [...FIRST_STAGE_MINI];
+  state.chainSig = "";
+  state.chainPulse = "";
+  state.chainPacket = "";
+  state.chainAlign = "";
   FIRST_STAGE_MINI.forEach((mini) => {
     state.firstStageDone[mini] = false;
   });
@@ -1082,6 +1107,7 @@ function handleCommand(raw) {
     if (!canStartMini("mini1")) return;
     if (!state.mini1Code) return writeLine("Сначала запусти mini1.", "error");
     if (value === state.mini1Code) {
+      state.chainSig = value.slice(-2).toLowerCase();
       registerMiniSuccess("mini1", 20);
       playMiniSuccessNoise("mini1");
       writeLine("MINI #1 пройдена.", "success");
@@ -1104,6 +1130,7 @@ function handleCommand(raw) {
       writeLine(`[PULSE] channel-${state.mini2Step} overload detected`, "system");
       writeLine("[PULSE] timing desync injected", "system");
       if (state.mini2Step >= state.mini2Sequence.length) {
+        state.chainPulse = String(state.mini2Sequence.reduce((acc, n) => acc + n, 0) % 10);
         writeLine("[ERR] relay-1 heartbeat lost", "error");
         writeLine("[ERR] relay-2 buffer overflow", "error");
         writeLine("[ERR] relay-3 emergency shutdown", "error");
@@ -1131,6 +1158,7 @@ function handleCommand(raw) {
       return;
     }
     if (answer === state.mini3Needle) {
+      state.chainPacket = answer.slice(-3).toLowerCase();
       registerMiniSuccess("mini3", 15);
       playMiniSuccessNoise("mini3");
       writeLine("MINI #3 пройдена.", "success");
@@ -1150,6 +1178,7 @@ function handleCommand(raw) {
     const answer = cmd.slice(6).trim().toUpperCase();
     const target = state.mini4Word.split("").reverse().join("");
     if (answer === target) {
+      state.chainAlign = answer.slice(0, 2).toLowerCase();
       registerMiniSuccess("mini4", 15);
       playMiniSuccessNoise("mini4");
       writeLine("MINI #4 пройдена.", "success");
