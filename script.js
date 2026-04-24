@@ -151,6 +151,16 @@ function playActivity(tag) {
   });
 }
 
+function playMiniSuccessNoise(miniKey) {
+  const tag = miniKey.toUpperCase();
+  const generic = [
+    `[${tag}] commit vector accepted`,
+    `[${tag}] privilege delta +1`,
+    `[${tag}] trace obfuscation complete`,
+  ];
+  generic.forEach((line) => writeLine(line, "system"));
+}
+
 function getPromptPath() {
   if (!state.ipAccessGranted) return "~";
   return state.currentDir === "/" ? "/" : state.currentDir;
@@ -887,6 +897,7 @@ function handleCommand(raw) {
     if (!state.mini1Code) return writeLine("Сначала запусти mini1.", "error");
     if (value === state.mini1Code) {
       registerMiniSuccess("mini1", 20);
+      playMiniSuccessNoise("mini1");
       writeLine("MINI #1 пройдена.", "success");
     } else {
       if (!registerMiniError("mini1")) {
@@ -904,8 +915,15 @@ function handleCommand(raw) {
     const expected = state.mini2Sequence[state.mini2Step];
     if (value === expected) {
       state.mini2Step += 1;
+      writeLine(`[PULSE] channel-${state.mini2Step} overload detected`, "system");
+      writeLine("[PULSE] timing desync injected", "system");
       if (state.mini2Step >= state.mini2Sequence.length) {
+        writeLine("[ERR] relay-1 heartbeat lost", "error");
+        writeLine("[ERR] relay-2 buffer overflow", "error");
+        writeLine("[ERR] relay-3 emergency shutdown", "error");
+        writeLine("[PULSE] full chain collapse confirmed", "success");
         registerMiniSuccess("mini2", 25);
+        playMiniSuccessNoise("mini2");
         writeLine("MINI #2 пройдена.", "success");
       }
     } else {
@@ -924,6 +942,7 @@ function handleCommand(raw) {
     const answer = Number(cmd.slice(9).trim());
     if (answer === state.mini3Target % 7) {
       registerMiniSuccess("mini3", 15);
+      playMiniSuccessNoise("mini3");
       writeLine("MINI #3 пройдена.", "success");
     } else {
       if (!registerMiniError("mini3")) {
@@ -941,6 +960,7 @@ function handleCommand(raw) {
     const target = state.mini4Word.split("").reverse().join("");
     if (answer === target) {
       registerMiniSuccess("mini4", 15);
+      playMiniSuccessNoise("mini4");
       writeLine("MINI #4 пройдена.", "success");
     } else {
       if (!registerMiniError("mini4")) {
@@ -957,6 +977,7 @@ function handleCommand(raw) {
     if (!state.mini5Needle) return writeLine("Сначала запусти mini5.", "error");
     if (val === state.mini5Needle.toLowerCase()) {
       registerMiniSuccess("mini5", 20);
+      playMiniSuccessNoise("mini5");
       writeLine("MINI #5 пройдена.", "success");
     } else {
       if (!registerMiniError("mini5")) {
@@ -973,6 +994,7 @@ function handleCommand(raw) {
     if (!state.mini6Needle) return writeLine("Сначала запусти mini6.", "error");
     if (val === state.mini6Needle.toLowerCase()) {
       registerMiniSuccess("mini6", 20);
+      playMiniSuccessNoise("mini6");
       writeLine("MINI #6 пройдена.", "success");
     } else {
       if (!registerMiniError("mini6")) {
@@ -1042,6 +1064,7 @@ function handleCommand(raw) {
     if (!state.ipMini1Code) return writeLine("Сначала ipmini1.", "error");
     if (val === state.ipMini1Code) {
       registerMiniSuccess("ipmini1", 20);
+      playMiniSuccessNoise("ipmini1");
       writeLine("IP MINI #1 пройдена.", "success");
     } else {
       if (!registerMiniError("ipmini1")) {
@@ -1057,6 +1080,7 @@ function handleCommand(raw) {
     if (!state.ipMini2Route) return writeLine("Сначала ipmini2.", "error");
     if (val === state.ipMini2Route) {
       registerMiniSuccess("ipmini2", 20);
+      playMiniSuccessNoise("ipmini2");
       writeLine("IP MINI #2 пройдена.", "success");
     } else {
       if (!registerMiniError("ipmini2")) {
@@ -1072,6 +1096,7 @@ function handleCommand(raw) {
     if (!state.ipMini3Mask) return writeLine("Сначала ipmini3.", "error");
     if (val === state.ipMini3Mask) {
       registerMiniSuccess("ipmini3", 20);
+      playMiniSuccessNoise("ipmini3");
       writeLine("IP MINI #3 пройдена.", "success");
     } else {
       if (!registerMiniError("ipmini3")) {
@@ -1112,6 +1137,7 @@ function handleCommand(raw) {
     }
     if (val === state.ipMini4Pin) {
       registerMiniSuccess("ipmini4", 20);
+      playMiniSuccessNoise("ipmini4");
       writeLine("IP MINI #4 пройдена.", "success");
       if (canFinishIp()) {
         writeLine("Все IP мини-игры завершены. Теперь доступен файл clients.", "success");
@@ -1130,6 +1156,7 @@ function handleCommand(raw) {
     if (!state.ipMini5Needle) return writeLine("Сначала ipmini5.", "error");
     if (val === state.ipMini5Needle.toLowerCase()) {
       registerMiniSuccess("ipmini5", 20);
+      playMiniSuccessNoise("ipmini5");
       writeLine("IP MINI #5 пройдена.", "success");
       if (canFinishIp()) {
         writeLine("Все IP мини-игры завершены. Теперь доступен файл clients.", "success");
@@ -1148,6 +1175,7 @@ function handleCommand(raw) {
     if (!state.ipMini6Needle) return writeLine("Сначала ipmini6.", "error");
     if (val === state.ipMini6Needle.toLowerCase()) {
       registerMiniSuccess("ipmini6", 20);
+      playMiniSuccessNoise("ipmini6");
       writeLine("IP MINI #6 пройдена.", "success");
       if (canFinishIp()) {
         writeLine("Все IP мини-игры завершены. Теперь доступен файл clients.", "success");
