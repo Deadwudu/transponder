@@ -5,7 +5,7 @@ const phaseBadge = document.getElementById("phaseBadge");
 const scoreBadge = document.getElementById("scoreBadge");
 const promptLabel = document.getElementById("promptLabel");
 
-const FIRST_STAGE_MINI = ["mini1", "mini2", "mini3", "mini4", "mini5", "mini6"];
+const FIRST_STAGE_MINI = ["mini1", "mini2", "mini3", "mini4", "mini5", "mini6", "mini7", "mini8", "mini9", "mini10"];
 const IP_STAGE_MINI = ["ipmini1", "ipmini2", "ipmini3", "ipmini4", "ipmini5", "ipmini6"];
 
 const state = {
@@ -17,6 +17,7 @@ const state = {
   ip: "",
   ipAccessGranted: false,
   finalDone: false,
+  firstStageSelected: [],
   mini1Code: "",
   mini2Sequence: [],
   mini2Step: 0,
@@ -31,6 +32,16 @@ const state = {
   mini6Sectors: [],
   mini6Reflectivity: {},
   mini6Scanned: {},
+  mini7Token: "",
+  mini7Messages: [],
+  mini8Needle: "",
+  mini8Daemons: [],
+  mini8Scores: {},
+  mini9Needle: "",
+  mini9Blocks: {},
+  mini10Needle: "",
+  mini10Relays: [],
+  mini10Load: {},
   ipMini1Code: "",
   ipMini1Keys: [],
   ipMini1Scanned: {},
@@ -61,6 +72,10 @@ const state = {
     mini4: false,
     mini5: false,
     mini6: false,
+    mini7: false,
+    mini8: false,
+    mini9: false,
+    mini10: false,
   },
   ipStageDone: {
     ipmini1: false,
@@ -203,6 +218,15 @@ function randomFrom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+function pickUnique(arr, count) {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy.slice(0, count);
+}
+
 function allDone(pool) {
   return Object.values(pool).every(Boolean);
 }
@@ -233,6 +257,24 @@ function clearMiniState(miniKey) {
     state.mini6Sectors = [];
     state.mini6Reflectivity = {};
     state.mini6Scanned = {};
+  }
+  if (miniKey === "mini7") {
+    state.mini7Token = "";
+    state.mini7Messages = [];
+  }
+  if (miniKey === "mini8") {
+    state.mini8Needle = "";
+    state.mini8Daemons = [];
+    state.mini8Scores = {};
+  }
+  if (miniKey === "mini9") {
+    state.mini9Needle = "";
+    state.mini9Blocks = {};
+  }
+  if (miniKey === "mini10") {
+    state.mini10Needle = "";
+    state.mini10Relays = [];
+    state.mini10Load = {};
   }
   if (miniKey === "ipmini1") state.ipMini1Code = "";
   if (miniKey === "ipmini1") {
@@ -269,7 +311,7 @@ function clearMiniState(miniKey) {
 
 function miniStageMeta(miniKey) {
   if (FIRST_STAGE_MINI.includes(miniKey)) {
-    return { list: FIRST_STAGE_MINI, done: state.firstStageDone, stageName: "этап 1" };
+    return { list: state.firstStageSelected, done: state.firstStageDone, stageName: "этап 1" };
   }
   return { list: IP_STAGE_MINI, done: state.ipStageDone, stageName: "IP этап" };
 }
@@ -452,6 +494,96 @@ function startMini6() {
   writeLine(`Карта секторов: ${sectors.join(" | ")}`, "system");
 }
 
+function startMini7() {
+  state.activeMini = "mini7";
+  playActivity("MINI #7");
+  const token = `tr-${randomCode(4, "ABCDEFGH0123456789")}`;
+  state.mini7Token = token.toLowerCase();
+  const logs = [
+    `[svc] mirror cache warmup id=${randomCode(3, "0123456789")}`,
+    `[svc] relay pulse normalized`,
+    `[svc] trace window opened`,
+    `[svc] TRACE_TOKEN ${token}`,
+    `[svc] fallback noise applied`,
+    `[svc] transport table refreshed`,
+  ];
+  state.mini7Messages = logs;
+  logs.forEach((line) => writeLine(line, "system"));
+}
+
+function startMini8() {
+  state.activeMini = "mini8";
+  playActivity("MINI #8");
+  const daemons = [];
+  while (daemons.length < 6) {
+    const daemon = `dmn-${randomCode(3, "ABCDEFGH")}`;
+    if (!daemons.includes(daemon)) daemons.push(daemon);
+  }
+  state.mini8Daemons = daemons;
+  state.mini8Scores = {};
+  let best = daemons[0];
+  let bestScore = 999;
+  daemons.forEach((d) => {
+    const latency = Math.floor(Math.random() * 60) + 20;
+    const noise = Math.floor(Math.random() * 35) + 5;
+    const score = latency + noise;
+    state.mini8Scores[d.toLowerCase()] = { latency, noise, score };
+    if (score < bestScore) {
+      bestScore = score;
+      best = d;
+    }
+  });
+  state.mini8Needle = best.toLowerCase();
+  writeLine("MINI #8 :: Баланс демонов", "success");
+  writeLine(`Активные демоны: ${daemons.join(", ")}`, "system");
+}
+
+function startMini9() {
+  state.activeMini = "mini9";
+  playActivity("MINI #9");
+  const blocks = {};
+  const blockIds = ["b1", "b2", "b3", "b4", "b5", "b6"];
+  const targetBlock = randomFrom(blockIds);
+  const targetKey = `kx-${randomCode(4, "ABCDEFGH0123456789")}`;
+  blockIds.forEach((id) => {
+    const fake = `kx-${randomCode(4, "ABCDEFGH0123456789")}`;
+    blocks[id] = [
+      `[dump:${id}] seq=${randomCode(6, "0123456789ABCDEF")}`,
+      `[dump:${id}] entropy=${Math.floor(Math.random() * 80) + 20}%`,
+      `[dump:${id}] ${(id === targetBlock) ? `extract=${targetKey}` : `extract=${fake}`}`,
+    ];
+  });
+  state.mini9Needle = targetKey.toLowerCase();
+  state.mini9Blocks = blocks;
+  writeLine("MINI #9 :: Извлечение блока", "success");
+  writeLine("Доступные блоки: b1, b2, b3, b4, b5, b6", "system");
+}
+
+function startMini10() {
+  state.activeMini = "mini10";
+  playActivity("MINI #10");
+  const relays = [];
+  while (relays.length < 6) {
+    const relay = `rl-${randomCode(3, "ABCDEFGH")}`;
+    if (!relays.includes(relay)) relays.push(relay);
+  }
+  state.mini10Relays = relays;
+  state.mini10Load = {};
+  let best = relays[0];
+  let bestLoad = 999;
+  relays.forEach((r) => {
+    const load = Math.floor(Math.random() * 70) + 15;
+    state.mini10Load[r.toLowerCase()] = load;
+    if (load < bestLoad) {
+      bestLoad = load;
+      best = r;
+    }
+  });
+  state.mini10Needle = best.toLowerCase();
+  writeLine("MINI #10 :: Привязка реле", "success");
+  writeLine(`Релейная сетка: ${relays.join(", ")}`, "system");
+}
+
 function startIpMini1() {
   state.activeMini = "ipmini1";
   playActivity("IP MINI #1");
@@ -583,7 +715,7 @@ function startIpMini6() {
 }
 
 function canBreachTransponder() {
-  return state.scanComplete && state.connected && allDone(state.firstStageDone);
+  return state.scanComplete && state.connected && state.firstStageSelected.every((mini) => state.firstStageDone[mini]);
 }
 
 function canFinishIp() {
@@ -615,8 +747,8 @@ function listDirectory(path) {
 
 function printHelp() {
   writeLine("Linux-подобные команды: help, status, clear, pwd, ls, ls -la, cd, cat, tree, whoami, uname", "success");
-  writeLine("Игровые команды: scan, connect, mini1..mini6, breach, hack ip, ipmini1..ipmini6", "system");
-  writeLine("Ответы мини-игр: decode, pulse, checksum, align, scan <target>, findch, findsector, unlock, route, mask, probe <coord>, crack, finduser, findfile", "system");
+  writeLine("Игровые команды: scan, connect, mini1..mini10, breach, hack ip, ipmini1..ipmini6", "system");
+  writeLine("Ответы мини-игр: decode, pulse, checksum, align, scan <target>, findch, findsector, trace, audit, stabilize, dump, extract, check, bind, unlock, route, mask, probe <coord>, crack, finduser, findfile", "system");
   writeLine("Правило: мини-игры идут строго по порядку. 5 ошибок в одной мини-игре = откат на предыдущую.", "system");
 
   if (!state.scanComplete) {
@@ -627,10 +759,24 @@ function printHelp() {
     writeLine("Что делать сейчас: выполни connect", "success");
     return;
   }
-  if (!allDone(state.firstStageDone)) {
-    const remaining = FIRST_STAGE_MINI.filter((k) => !state.firstStageDone[k]).join(", ");
+  if (!state.firstStageSelected.every((k) => state.firstStageDone[k])) {
+    const remaining = state.firstStageSelected.filter((k) => !state.firstStageDone[k]).join(", ");
+    const current = state.firstStageSelected.find((k) => !state.firstStageDone[k]);
     writeLine(`Что делать сейчас: пройти мини-игры этапа 1 (${remaining})`, "success");
-    writeLine("Формат этапа 1: decode <code>, pulse <digit>, checksum <packet-id>, align <word>, scan <channel>, findch <value>, findsector <value>", "system");
+    writeLine(`Активные мини-игры этой сессии: ${state.firstStageSelected.join(", ")}`, "system");
+    const hints = {
+      mini1: "В сигнальных строках есть ключ, который нужно декодировать.",
+      mini2: "Импульсы нужно провести в правильном порядке.",
+      mini3: "Ищи аномальный packet-id с критическим drift.",
+      mini4: "В антенном шуме спрятан код для выравнивания.",
+      mini5: "Слабый канал можно определить по диагностике scan.",
+      mini6: "Нужный сектор вычисляется через серию scan.",
+      mini7: "Найди скрытый trace-токен в сервисном потоке.",
+      mini8: "Проверяй демоны через audit и фиксируй лучший.",
+      mini9: "Извлеки ключ из дампов блоков.",
+      mini10: "Сверь релейные метрики и закрепи верный bind.",
+    };
+    if (current) writeLine(`Подсказка текущей игры: ${hints[current]}`, "system");
     writeLine("После прохождения: breach", "system");
     return;
   }
@@ -659,7 +805,7 @@ function printHelp() {
 function printStatus() {
   writeLine(`Разведка: ${state.scanComplete ? "OK" : "нет"}`, "system");
   writeLine(`Подключение: ${state.connected ? "OK" : "нет"}`, "system");
-  FIRST_STAGE_MINI.forEach((key, idx) => {
+  state.firstStageSelected.forEach((key, idx) => {
     writeLine(`Этап 1 / Мини-${idx + 1}: ${state.firstStageDone[key] ? "OK" : "нет"}`, "system");
   });
   writeLine(`Транспондер: ${state.transponderBreached ? "взломан" : "защищен"}`, "system");
@@ -784,6 +930,10 @@ function handleFilesystem(cmd, lower) {
 
 function bootMessage() {
   state.clientsData = buildClientsData();
+  state.firstStageSelected = pickUnique(FIRST_STAGE_MINI, 5);
+  FIRST_STAGE_MINI.forEach((mini) => {
+    state.firstStageDone[mini] = false;
+  });
   writeLine("=== TRANSPONDER BREACH SIM v0.2 ===", "success");
   writeLine("Художественный офлайн-симулятор запущен.", "system");
   writeLine("Введи help для списка команд.", "system");
@@ -898,16 +1048,26 @@ function handleCommand(raw) {
     state.phase = Math.max(state.phase, 2);
     gain(10);
     playActivity("LINK");
-    writeLine("Подключение установлено. Требуется пройти 6 проверок по порядку.", "success");
+    writeLine(`Подключение установлено. Активированы 5 задач: ${state.firstStageSelected.join(", ")}.`, "success");
     return;
   }
 
-  if (lower === "mini1") return state.connected ? (canStartMini("mini1") ? startMini1() : null) : writeLine("Нет подключения к узлу.", "error");
-  if (lower === "mini2") return state.connected ? (canStartMini("mini2") ? startMini2() : null) : writeLine("Нет подключения к узлу.", "error");
-  if (lower === "mini3") return state.connected ? (canStartMini("mini3") ? startMini3() : null) : writeLine("Нет подключения к узлу.", "error");
-  if (lower === "mini4") return state.connected ? (canStartMini("mini4") ? startMini4() : null) : writeLine("Нет подключения к узлу.", "error");
-  if (lower === "mini5") return state.connected ? (canStartMini("mini5") ? startMini5() : null) : writeLine("Нет подключения к узлу.", "error");
-  if (lower === "mini6") return state.connected ? (canStartMini("mini6") ? startMini6() : null) : writeLine("Нет подключения к узлу.", "error");
+  if (lower.startsWith("mini")) {
+    if (!state.connected) return writeLine("Нет подключения к узлу.", "error");
+    if (!state.firstStageSelected.includes(lower)) {
+      return writeLine("Эта мини-игра не активна в текущей сессии.", "error");
+    }
+    if (lower === "mini1") return canStartMini("mini1") ? startMini1() : null;
+    if (lower === "mini2") return canStartMini("mini2") ? startMini2() : null;
+    if (lower === "mini3") return canStartMini("mini3") ? startMini3() : null;
+    if (lower === "mini4") return canStartMini("mini4") ? startMini4() : null;
+    if (lower === "mini5") return canStartMini("mini5") ? startMini5() : null;
+    if (lower === "mini6") return canStartMini("mini6") ? startMini6() : null;
+    if (lower === "mini7") return canStartMini("mini7") ? startMini7() : null;
+    if (lower === "mini8") return canStartMini("mini8") ? startMini8() : null;
+    if (lower === "mini9") return canStartMini("mini9") ? startMini9() : null;
+    if (lower === "mini10") return canStartMini("mini10") ? startMini10() : null;
+  }
 
   if (lower.startsWith("decode ")) {
     const value = cmd.slice(7).trim().toUpperCase();
@@ -1024,6 +1184,102 @@ function handleCommand(raw) {
         state.mini6Needle = "";
         writeLine("Сектор не найден, запусти mini6 снова.", "error");
       }
+    }
+    return;
+  }
+
+  if (lower.startsWith("trace ")) {
+    if (!canStartMini("mini7")) return;
+    if (!state.mini7Token) return writeLine("Сначала запусти mini7.", "error");
+    const val = cmd.slice(6).trim().toLowerCase();
+    if (val === state.mini7Token) {
+      registerMiniSuccess("mini7", 20);
+      playMiniSuccessNoise("mini7");
+      writeLine("MINI #7 пройдена.", "success");
+    } else if (!registerMiniError("mini7")) {
+      state.mini7Token = "";
+      state.mini7Messages = [];
+      writeLine("TRACE маркер не подтвержден.", "error");
+    }
+    return;
+  }
+
+  if (lower.startsWith("audit ")) {
+    if (!canStartMini("mini8")) return;
+    const val = cmd.slice(6).trim().toLowerCase();
+    if (!state.mini8Daemons.length) return writeLine("Сначала запусти mini8.", "error");
+    const daemon = state.mini8Daemons.find((d) => d.toLowerCase() === val);
+    if (!daemon) return writeLine("Демон не найден.", "error");
+    const stats = state.mini8Scores[daemon.toLowerCase()];
+    writeLine(`${daemon} :: latency=${stats.latency} noise=${stats.noise} score=${stats.score}`, "system");
+    return;
+  }
+
+  if (lower.startsWith("stabilize ")) {
+    if (!canStartMini("mini8")) return;
+    const val = cmd.slice(10).trim().toLowerCase();
+    if (!state.mini8Needle) return writeLine("Сначала запусти mini8.", "error");
+    if (val === state.mini8Needle) {
+      registerMiniSuccess("mini8", 20);
+      playMiniSuccessNoise("mini8");
+      writeLine("MINI #8 пройдена.", "success");
+    } else if (!registerMiniError("mini8")) {
+      state.mini8Needle = "";
+      state.mini8Daemons = [];
+      state.mini8Scores = {};
+      writeLine("Стабилизация не принята.", "error");
+    }
+    return;
+  }
+
+  if (lower.startsWith("dump ")) {
+    if (!canStartMini("mini9")) return;
+    const block = cmd.slice(5).trim().toLowerCase();
+    if (!state.mini9Needle) return writeLine("Сначала запусти mini9.", "error");
+    if (!state.mini9Blocks[block]) return writeLine("Блок не найден.", "error");
+    state.mini9Blocks[block].forEach((line) => writeLine(line, "system"));
+    return;
+  }
+
+  if (lower.startsWith("extract ")) {
+    if (!canStartMini("mini9")) return;
+    const val = cmd.slice(8).trim().toLowerCase();
+    if (!state.mini9Needle) return writeLine("Сначала запусти mini9.", "error");
+    if (val === state.mini9Needle) {
+      registerMiniSuccess("mini9", 20);
+      playMiniSuccessNoise("mini9");
+      writeLine("MINI #9 пройдена.", "success");
+    } else if (!registerMiniError("mini9")) {
+      state.mini9Needle = "";
+      state.mini9Blocks = {};
+      writeLine("Ключ извлечения невалиден.", "error");
+    }
+    return;
+  }
+
+  if (lower.startsWith("check ")) {
+    if (!canStartMini("mini10")) return;
+    const relay = cmd.slice(6).trim().toLowerCase();
+    if (!state.mini10Needle) return writeLine("Сначала запусти mini10.", "error");
+    const match = state.mini10Relays.find((r) => r.toLowerCase() === relay);
+    if (!match) return writeLine("Реле не найдено.", "error");
+    writeLine(`${match} :: load=${state.mini10Load[match.toLowerCase()]}%`, "system");
+    return;
+  }
+
+  if (lower.startsWith("bind ")) {
+    if (!canStartMini("mini10")) return;
+    const val = cmd.slice(5).trim().toLowerCase();
+    if (!state.mini10Needle) return writeLine("Сначала запусти mini10.", "error");
+    if (val === state.mini10Needle) {
+      registerMiniSuccess("mini10", 20);
+      playMiniSuccessNoise("mini10");
+      writeLine("MINI #10 пройдена.", "success");
+    } else if (!registerMiniError("mini10")) {
+      state.mini10Needle = "";
+      state.mini10Relays = [];
+      state.mini10Load = {};
+      writeLine("Привязка реле не выполнена.", "error");
     }
     return;
   }
