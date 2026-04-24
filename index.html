@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transponder Breach</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">TRANS<span>PONDER</span></div>
+      <div class="status">
+        <span id="phaseBadge">Фаза: Подключение</span>
+        <span id="scoreBadge">Рейтинг: 0</span>
+      </div>
+    </header>
+
+    <main class="main">
+      <section class="terminal-wrap">
+        <div id="terminalOutput" class="terminal-output" aria-live="polite"></div>
+        <form id="terminalForm" class="terminal-form" autocomplete="off">
+          <label id="promptLabel" for="terminalInput">operator@transponder:~$</label>
+          <input id="terminalInput" type="text" spellcheck="false" autofocus />
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
