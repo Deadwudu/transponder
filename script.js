@@ -246,13 +246,11 @@ function clearMiniState(miniKey) {
   if (miniKey === "ipmini1") {
     state.ipMini1Keys = [];
     state.ipMini1Scanned = {};
-    state.ipChainRouteSeed = "";
   }
   if (miniKey === "ipmini2") {
     state.ipMini2Route = "";
     state.ipMini2Routes = [];
     state.ipMini2Scanned = {};
-    state.ipChainClassHint = "";
   }
   if (miniKey === "ipmini3") {
     state.ipMini3Mask = "";
@@ -261,21 +259,18 @@ function clearMiniState(miniKey) {
     state.ipMini3Profiles = [];
     state.ipMini3Scanned = {};
     state.ipMini3Prefix = 24;
-    state.ipChainDiagSeed = 0;
   }
   if (miniKey === "ipmini4") {
     state.ipMini4Pin = "";
     state.ipMini4Matrix = [];
     state.ipMini4Probed = {};
     state.ipMini4Column = 0;
-    state.ipChainSvcTag = "";
   }
   if (miniKey === "ipmini5") {
     state.ipMini5Needle = "";
     state.ipMini5Users = [];
     state.ipMini5Score = {};
     state.ipMini5Scanned = {};
-    state.ipChainFileTag = "";
   }
   if (miniKey === "ipmini6") {
     state.ipMini6Needle = "";
@@ -601,52 +596,42 @@ function startIpMini2() {
 function startIpMini3() {
   state.activeMini = "ipmini3";
   playActivity("IP MINI #3");
-  const cidrToMask = {
-    22: "255.255.252.0",
-    23: "255.255.254.0",
-    24: "255.255.255.0",
-    25: "255.255.255.128",
-    26: "255.255.255.192",
-    27: "255.255.255.224",
-    28: "255.255.255.240",
+  const classHint = state.ipChainClassHint || randomFrom(["A", "B", "C"]);
+  const classToMask = {
+    A: "255.0.0.0",
+    B: "255.255.0.0",
+    C: "255.255.255.0",
   };
-  const usableHosts = (prefix) => (2 ** (32 - prefix)) - 2;
-  const tracks = {
-    A: [22, 23, 24],
-    B: [24, 25, 26],
-    C: [26, 27, 28],
-  };
-  const track = tracks[state.ipChainClassHint] || tracks.B;
-  const selectedPrefix = randomFrom(track);
-  const tighterPrefix = Math.min(selectedPrefix + 1, 28);
-  const minHosts = usableHosts(tighterPrefix) + 1;
-  const maxHosts = usableHosts(selectedPrefix);
-  const neededHosts = Math.floor(Math.random() * (Math.max(maxHosts - minHosts, 1) + 1)) + minHosts;
-  const profileSet = new Set([selectedPrefix]);
-  while (profileSet.size < 5) {
-    profileSet.add(Math.floor(Math.random() * 7) + 22);
+  const allMasks = Object.values(classToMask);
+  const correctMask = classToMask[classHint];
+  const options = [correctMask];
+  while (options.length < 3) {
+    const candidate = randomFrom(allMasks);
+    if (!options.includes(candidate)) options.push(candidate);
   }
-  const profiles = [...profileSet].sort((a, b) => a - b).map((p) => `/${p}`);
+  for (let i = options.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [options[i], options[j]] = [options[j], options[i]];
+  }
 
   let first = Math.floor(Math.random() * 223) + 1;
-  if (state.ipChainClassHint === "A") first = Math.floor(Math.random() * 126) + 1;
-  if (state.ipChainClassHint === "B") first = Math.floor(Math.random() * 64) + 128;
-  if (state.ipChainClassHint === "C") first = Math.floor(Math.random() * 31) + 192;
+  if (classHint === "A") first = Math.floor(Math.random() * 126) + 1;
+  if (classHint === "B") first = Math.floor(Math.random() * 64) + 128;
+  if (classHint === "C") first = Math.floor(Math.random() * 31) + 192;
   const second = Math.floor(Math.random() * 256);
   const third = Math.floor(Math.random() * 256);
   const fourth = Math.floor(Math.random() * 256);
   state.ipMini3Ip = `${first}.${second}.${third}.${fourth}`;
-  state.ipMini3NeedHosts = neededHosts;
-  state.ipMini3Profiles = profiles;
+  state.ipMini3NeedHosts = 0;
+  state.ipMini3Profiles = options;
   state.ipMini3Scanned = {};
-  profiles.forEach((profile) => { state.ipMini3Scanned[profile] = false; });
-  state.ipMini3Prefix = selectedPrefix;
-  state.ipMini3Mask = cidrToMask[selectedPrefix];
-  writeLine("IP MINI #3 :: Планировщик подсети", "success");
-  if (state.ipChainClassHint) writeLine(`[SUBNET] class-vector ${state.ipChainClassHint}`, "system");
-  writeLine(`[SUBNET] target hosts >= ${neededHosts}`, "system");
-  writeLine(`Определи оптимальную маску для IP: ${state.ipMini3Ip}`, "system");
-  writeLine(`Профили: ${profiles.join(", ")}`, "system");
+  options.forEach((mask) => { state.ipMini3Scanned[mask] = false; });
+  state.ipMini3Prefix = 24;
+  state.ipMini3Mask = correctMask;
+  writeLine("IP MINI #3 :: Маска подсети", "success");
+  writeLine(`[SUBNET] class-vector ${classHint}`, "system");
+  writeLine(`Определи маску для IP: ${state.ipMini3Ip}`, "system");
+  writeLine(`Варианты: ${options.join(" | ")}`, "system");
 }
 
 function startIpMini4() {
@@ -663,16 +648,17 @@ function startIpMini4() {
     matrix.push(rowValues);
   }
   const base = Number.isInteger(state.ipChainDiagSeed) ? state.ipChainDiagSeed : Math.floor(Math.random() * 10);
-  const targetColumn = base % 4;
+  const columnShift = base % 4;
   for (let i = 0; i < 4; i += 1) {
     const digit = String((base + i * 2) % 10);
+    const targetColumn = (columnShift + i) % 4;
     matrix[i][targetColumn] = digit;
     pin.push(digit);
   }
   state.ipMini4Pin = pin.join("");
   state.ipMini4Matrix = matrix;
   state.ipMini4Probed = {};
-  state.ipMini4Column = targetColumn;
+  state.ipMini4Column = columnShift;
   writeLine("IP MINI #4 :: PIN-барьер", "success");
   writeLine("    1  2  3  4", "system");
   writeLine(`A   ${matrix[0].join("  ")}`, "system");
@@ -712,7 +698,10 @@ function startIpMini5() {
   }
   state.ipMini5Needle = weakest;
   writeLine("IP MINI #5 :: Поиск сервисного аккаунта", "success");
-  if (state.ipChainSvcTag) writeLine(`[AUTH] tail-vector **${state.ipChainSvcTag}`, "system");
+  if (state.ipChainSvcTag) {
+    writeLine(`[AUTH] tail-vector **${state.ipChainSvcTag}`, "system");
+    writeLine(`[AUTH] target rule :: ищи аккаунт, который оканчивается на **${state.ipChainSvcTag}`, "system");
+  }
   writeLine(`Список аккаунтов: ${users.join(", ")}`, "system");
 }
 
@@ -747,7 +736,10 @@ function startIpMini6() {
   }
   state.ipMini6Needle = weakest;
   writeLine("IP MINI #6 :: Поиск целевого артефакта", "success");
-  if (state.ipChainFileTag) writeLine(`[ERR] inode drift :: expected file tail **${state.ipChainFileTag}`, "error");
+  if (state.ipChainFileTag) {
+    writeLine(`[ERR] inode drift :: expected file tail **${state.ipChainFileTag}`, "error");
+    writeLine(`[FS] target rule :: ищи frag_*.pkg с хвостом **${state.ipChainFileTag}`, "system");
+  }
   writeLine(`Список файлов: ${files.join(" ; ")}`, "system");
 }
 
@@ -799,7 +791,6 @@ function printHelp() {
     const remaining = state.firstStageSelected.filter((k) => !state.firstStageDone[k]).join(", ");
     const current = state.firstStageSelected.find((k) => !state.firstStageDone[k]);
     writeLine("Этап: первый контур взлома.", "success");
-    writeLine(`Текущая игра: ${current}. Осталось: ${remaining}`, "system");
     const hints = {
       mini1: "В сигнальных строках есть ключ, который нужно декодировать.",
       mini2: "Импульсы заблокированы, токен лежит в пост-системных логах после mini1.",
@@ -834,19 +825,18 @@ function printHelp() {
     const remaining = IP_STAGE_MINI.filter((k) => !state.ipStageDone[k]).join(", ");
     const current = IP_STAGE_MINI.find((k) => !state.ipStageDone[k]);
     writeLine("Этап: IP мини-игры.", "success");
-    writeLine(`Текущая игра: ${current}. Осталось: ${remaining}`, "system");
     const ipHints = {
       ipmini1: "Среди ключей есть корректный; скан помогает отсеять лишние.",
       ipmini2: "Маршруты связаны с прошлым ключом; сверяй задержки и сервисные следы.",
-      ipmini3: "Сверяй профили через scan: подходит тот, что дает минимум нужных хостов без дефицита.",
+      ipmini3: "Смотри class-vector и выбери правильную маску из предложенных вариантов.",
       ipmini4: "PIN уже мелькал в шуме после ipmini3; можно сразу crack, probe нужен только для проверки.",
-      ipmini5: "В аккаунтах есть тег из PIN-контекста; audit/scan сужает выбор.",
-      ipmini6: "Файл-цель связан с сервисным тегом предыдущего шага.",
+      ipmini5: "Смотри хвост **xx из ipmini4: в ipmini5 нужен аккаунт, который оканчивается на этот хвост.",
+      ipmini6: "Смотри file tail **xx из ipmini5: в ipmini6 нужен frag_*.pkg с таким хвостом.",
     };
     const ipCommands = {
       ipmini1: "scan <hex>, unlock <hex>",
       ipmini2: "scan <route>, route <route>",
-      ipmini3: "scan </prefix>, mask <mask>",
+      ipmini3: "mask <mask>",
       ipmini4: "crack <pin> (или probe <coord> для проверки)",
       ipmini5: "scan <user>, finduser <user>",
       ipmini6: "scan <file>, findfile <file>",
@@ -1031,7 +1021,7 @@ function handleCommand(raw) {
   }
 
   if (lower === "scan") {
-    if (["mini5", "ipmini1", "ipmini2", "ipmini3", "ipmini5", "ipmini6"].includes(state.activeMini)) {
+    if (["mini5", "ipmini1", "ipmini2", "ipmini5", "ipmini6"].includes(state.activeMini)) {
       writeLine("В этой мини-игре используй scan <target>.", "error");
       return;
     }
@@ -1094,20 +1084,6 @@ function handleCommand(raw) {
       writeLine(`${raw} :: ${status}`, raw === state.ipMini2Route ? "success" : "system");
       return;
     }
-    if (state.activeMini === "ipmini3") {
-      const raw = cmd.slice(5).trim();
-      const normalized = raw.startsWith("/") ? raw : `/${raw}`;
-      if (!state.ipMini3Profiles.includes(normalized)) {
-        writeLine("Профиль не найден в списке ipmini3.", "error");
-        return;
-      }
-      state.ipMini3Scanned[normalized] = true;
-      const prefix = Number(normalized.slice(1));
-      const hosts = (2 ** (32 - prefix)) - 2;
-      const fit = hosts >= state.ipMini3NeedHosts ? "FIT" : "FAIL";
-      writeLine(`${normalized} :: usable ${hosts} hosts :: ${fit}`, fit === "FIT" ? "success" : "system");
-      return;
-    }
     if (state.activeMini === "ipmini5") {
       if (!state.ipMini5Users.includes(arg)) {
         writeLine("Аккаунт не найден в списке ipmini5.", "error");
@@ -1126,7 +1102,7 @@ function handleCommand(raw) {
       writeLine(`${arg} :: exposure ${state.ipMini6Score[arg]}%`, "system");
       return;
     }
-    writeLine("scan <target> доступна в mini3/mini5/ipmini1/ipmini2/ipmini3/ipmini5/ipmini6.", "error");
+    writeLine("scan <target> доступна в mini3/mini5/ipmini1/ipmini2/ipmini5/ipmini6.", "error");
     return;
   }
 
@@ -1426,8 +1402,8 @@ function handleCommand(raw) {
     const col = Number(coord[1]) - 1;
     const value = state.ipMini4Matrix[row][col];
     state.ipMini4Probed[coord] = true;
-    const verticalMatch = col === state.ipMini4Column;
-    writeLine(`${coord} => ${value} ${verticalMatch ? "[v-link]" : ""}`.trim(), verticalMatch ? "success" : "system");
+    const pinMatch = col === ((state.ipMini4Column + row) % 4);
+    writeLine(`${coord} => ${value} ${pinMatch ? "[pin-node]" : ""}`.trim(), pinMatch ? "success" : "system");
     return;
   }
 
@@ -1440,6 +1416,7 @@ function handleCommand(raw) {
       registerMiniSuccess("ipmini4", 20);
       playMiniSuccessNoise("ipmini4");
       writeLine(`[ERR] acct-index drift :: expected tail **${state.ipChainSvcTag}`, "error");
+      writeLine(`[AUTH] next target :: в ipmini5 ищи аккаунт с хвостом **${state.ipChainSvcTag}`, "system");
       writeLine("IP MINI #4 пройдена.", "success");
     } else {
       if (!registerMiniError("ipmini4")) {
@@ -1458,6 +1435,7 @@ function handleCommand(raw) {
       registerMiniSuccess("ipmini5", 20);
       playMiniSuccessNoise("ipmini5");
       writeLine(`[ERR] fs-queue mismatch :: next file tail **${state.ipChainFileTag}`, "error");
+      writeLine(`[FS] next target :: в ipmini6 ищи frag_*.pkg с хвостом **${state.ipChainFileTag}`, "system");
       writeLine("IP MINI #5 пройдена.", "success");
     } else {
       if (!registerMiniError("ipmini5")) {
