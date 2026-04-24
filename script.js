@@ -336,6 +336,7 @@ function buildClientsData() {
 
 function startMini1() {
   state.activeMini = "mini1";
+  playActivity("MINI #1");
   state.mini1Code = randomCode(5);
   writeLine("MINI #1 :: Декодер сигнатуры", "success");
   writeLine(`Сигнатура перехвачена: ${state.mini1Code}`, "system");
@@ -343,6 +344,7 @@ function startMini1() {
 
 function startMini2() {
   state.activeMini = "mini2";
+  playActivity("MINI #2");
   state.mini2Sequence = Array.from({ length: 4 }, () => Math.floor(Math.random() * 9) + 1);
   state.mini2Step = 0;
   writeLine("MINI #2 :: Синхронизация импульсов", "success");
@@ -351,6 +353,7 @@ function startMini2() {
 
 function startMini3() {
   state.activeMini = "mini3";
+  playActivity("MINI #3");
   state.mini3Target = Math.floor(Math.random() * 40) + 60;
   writeLine("MINI #3 :: Контрольная сумма", "success");
   writeLine(`Найди остаток от деления ${state.mini3Target} на 7.`, "system");
@@ -358,13 +361,18 @@ function startMini3() {
 
 function startMini4() {
   state.activeMini = "mini4";
+  playActivity("MINI #4");
   state.mini4Word = randomCode(4, "ABCDEFGH");
   writeLine("MINI #4 :: Калибровка антенны", "success");
-  writeLine(`Разверни код задом-наперед: ${state.mini4Word}`, "system");
+  writeLine("[ANT] sweep vector locked", "system");
+  writeLine("[ANT] phase shift compensation enabled", "system");
+  writeLine(`[ANT] CODE ${state.mini4Word}`, "success");
+  writeLine("[ANT] waiting for alignment token...", "system");
 }
 
 function startMini5() {
   state.activeMini = "mini5";
+  playActivity("MINI #5");
   const channels = [];
   while (channels.length < 6) {
     const ch = `rf-${randomCode(3, "0123456789")}`;
@@ -391,8 +399,9 @@ function startMini5() {
 
 function startMini6() {
   state.activeMini = "mini6";
+  playActivity("MINI #6");
   const sectors = [];
-  while (sectors.length < 7) {
+  while (sectors.length < 6) {
     const sector = `sector-${randomCode(2, "ABCDEFGH")}`;
     if (!sectors.includes(sector)) sectors.push(sector);
   }
@@ -495,7 +504,7 @@ function startIpMini5() {
   state.activeMini = "ipmini5";
   playActivity("IP MINI #5");
   const users = [];
-  while (users.length < 7) {
+  while (users.length < 6) {
     const user = `svc_${randomCode(4, "abcdefghijklmnopqrstuvwxyz")}`;
     if (!users.includes(user)) users.push(user);
   }
@@ -522,7 +531,7 @@ function startIpMini6() {
   state.activeMini = "ipmini6";
   playActivity("IP MINI #6");
   const files = [];
-  while (files.length < 7) {
+  while (files.length < 6) {
     const file = `${randomFrom(["cache", "dump", "core", "mirror", "node", "seed", "frag"])}_${randomCode(3, "0123456789")}.${randomFrom(["bin", "tmp", "log", "key", "map", "dat", "pkg"])}`;
     if (!files.includes(file)) files.push(file);
   }
@@ -789,7 +798,8 @@ function handleCommand(raw) {
   }
 
   if (lower.startsWith("scan ")) {
-    const arg = cmd.slice(5).trim().toLowerCase();
+    const argRaw = cmd.slice(5).trim();
+    const arg = argRaw.toLowerCase();
     if (state.activeMini === "mini5") {
       if (!state.mini5Channels.includes(arg)) {
         writeLine("Канал не найден в списке mini5.", "error");
@@ -800,12 +810,13 @@ function handleCommand(raw) {
       return;
     }
     if (state.activeMini === "mini6") {
-      if (!state.mini6Sectors.includes(arg)) {
+      const sectorMatch = state.mini6Sectors.find((sector) => sector.toLowerCase() === arg);
+      if (!sectorMatch) {
         writeLine("Сектор не найден в списке mini6.", "error");
         return;
       }
-      state.mini6Scanned[arg] = true;
-      writeLine(`${arg} :: reflectivity ${state.mini6Reflectivity[arg]}%`, "system");
+      state.mini6Scanned[sectorMatch] = true;
+      writeLine(`${sectorMatch} :: reflectivity ${state.mini6Reflectivity[sectorMatch]}%`, "system");
       return;
     }
     if (state.activeMini === "ipmini1") {
@@ -896,8 +907,6 @@ function handleCommand(raw) {
       if (state.mini2Step >= state.mini2Sequence.length) {
         registerMiniSuccess("mini2", 25);
         writeLine("MINI #2 пройдена.", "success");
-      } else {
-        writeLine(`Верно. Осталось ${state.mini2Sequence.length - state.mini2Step}.`, "system");
       }
     } else {
       if (!registerMiniError("mini2")) {
@@ -946,12 +955,7 @@ function handleCommand(raw) {
     if (!canStartMini("mini5")) return;
     const val = cmd.slice(7).trim().toLowerCase();
     if (!state.mini5Needle) return writeLine("Сначала запусти mini5.", "error");
-    const allScanned = state.mini5Channels.length > 0 && state.mini5Channels.every((ch) => state.mini5Scanned[ch]);
-    if (!allScanned) {
-      writeLine("Сначала просканируй все каналы через scan <channel>.", "error");
-      return;
-    }
-    if (val === state.mini5Needle) {
+    if (val === state.mini5Needle.toLowerCase()) {
       registerMiniSuccess("mini5", 20);
       writeLine("MINI #5 пройдена.", "success");
     } else {
@@ -967,12 +971,7 @@ function handleCommand(raw) {
     if (!canStartMini("mini6")) return;
     const val = cmd.slice(11).trim().toLowerCase();
     if (!state.mini6Needle) return writeLine("Сначала запусти mini6.", "error");
-    const allScanned = state.mini6Sectors.length > 0 && state.mini6Sectors.every((sector) => state.mini6Scanned[sector]);
-    if (!allScanned) {
-      writeLine("Сначала просканируй все сектора через scan <sector>.", "error");
-      return;
-    }
-    if (val === state.mini6Needle) {
+    if (val === state.mini6Needle.toLowerCase()) {
       registerMiniSuccess("mini6", 20);
       writeLine("MINI #6 пройдена.", "success");
     } else {
@@ -1129,12 +1128,7 @@ function handleCommand(raw) {
     const val = cmd.slice(9).trim().toLowerCase();
     if (!canStartMini("ipmini5")) return;
     if (!state.ipMini5Needle) return writeLine("Сначала ipmini5.", "error");
-    const allScanned = state.ipMini5Users.length > 0 && state.ipMini5Users.every((u) => state.ipMini5Scanned[u]);
-    if (!allScanned) {
-      writeLine("Сначала просканируй все аккаунты через scan <user>.", "error");
-      return;
-    }
-    if (val === state.ipMini5Needle) {
+    if (val === state.ipMini5Needle.toLowerCase()) {
       registerMiniSuccess("ipmini5", 20);
       writeLine("IP MINI #5 пройдена.", "success");
       if (canFinishIp()) {
@@ -1152,12 +1146,7 @@ function handleCommand(raw) {
     const val = cmd.slice(9).trim().toLowerCase();
     if (!canStartMini("ipmini6")) return;
     if (!state.ipMini6Needle) return writeLine("Сначала ipmini6.", "error");
-    const allScanned = state.ipMini6Files.length > 0 && state.ipMini6Files.every((f) => state.ipMini6Scanned[f]);
-    if (!allScanned) {
-      writeLine("Сначала просканируй все файлы через scan <file>.", "error");
-      return;
-    }
-    if (val === state.ipMini6Needle) {
+    if (val === state.ipMini6Needle.toLowerCase()) {
       registerMiniSuccess("ipmini6", 20);
       writeLine("IP MINI #6 пройдена.", "success");
       if (canFinishIp()) {
