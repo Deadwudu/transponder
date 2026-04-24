@@ -19,15 +19,18 @@ const state = {
   finalDone: false,
   firstStageSelected: [],
   chainSig: "",
+  chainSigFull: "",
   chainPulse: "",
   chainPacket: "",
   chainAlign: "",
   mini1Code: "",
   mini2Sequence: [],
   mini2Step: 0,
+  mini2Armed: false,
   mini3Needle: "",
   mini3Packets: [],
   mini4Word: "",
+  mini4Codes: [],
   mini5Needle: "",
   mini5Channels: [],
   mini5Integrity: {},
@@ -250,12 +253,14 @@ function clearMiniState(miniKey) {
   if (miniKey === "mini2") {
     state.mini2Sequence = [];
     state.mini2Step = 0;
+    state.mini2Armed = false;
   }
   if (miniKey === "mini3") {
     state.mini3Needle = "";
     state.mini3Packets = [];
   }
   if (miniKey === "mini4") state.mini4Word = "";
+  if (miniKey === "mini4") state.mini4Codes = [];
   if (miniKey === "mini5") {
     state.mini5Needle = "";
     state.mini5Channels = [];
@@ -418,9 +423,10 @@ function startMini2() {
     state.mini2Sequence[1] = (state.chainSig.charCodeAt(1) % 9) + 1;
   }
   state.mini2Step = 0;
+  state.mini2Armed = false;
   writeLine("MINI #2 :: Синхронизация импульсов", "success");
   writeLine("[SYNC] seed vector locked from previous signature", "system");
-  writeLine(`Последовательность: ${state.mini2Sequence.join(" ")}`, "system");
+  writeLine("[SYNC] sequence masked. awaiting unlock token...", "system");
 }
 
 function startMini3() {
@@ -440,6 +446,9 @@ function startMini3() {
   const pulsePrefix = state.chainPulse || String(Math.floor(Math.random() * 9) + 1);
   packets[badIndex].id = `pkt-${pulsePrefix}${Math.floor(Math.random() * 90) + 10}`;
   packets[badIndex].drift = Math.floor(Math.random() * 4);
+  let decoyIndex = Math.floor(Math.random() * packets.length);
+  while (decoyIndex === badIndex) decoyIndex = Math.floor(Math.random() * packets.length);
+  packets[decoyIndex].drift = packets[badIndex].drift;
   state.mini3Needle = packets[badIndex].id.toLowerCase();
   state.mini3Packets = packets.map((p) => p.id.toLowerCase());
   writeLine("MINI #3 :: Контрольная сумма", "success");
@@ -452,10 +461,15 @@ function startMini4() {
   const packetFragment = (state.chainPacket || randomCode(3, "0123456789")).slice(0, 2);
   const mapped = `${mapDigitToAH(packetFragment[0])}${mapDigitToAH(packetFragment[1])}`;
   state.mini4Word = `${randomCode(2, "ABCDEFGH")}${mapped}`;
+  const decoyA = `${randomCode(2, "ABCDEFGH")}${randomCode(2, "ABCDEFGH")}`;
+  const decoyB = `${randomCode(2, "ABCDEFGH")}${randomCode(2, "ABCDEFGH")}`;
+  state.mini4Codes = [state.mini4Word, decoyA, decoyB];
   writeLine("MINI #4 :: Калибровка антенны", "success");
   writeLine("[ANT] sweep vector locked", "system");
   writeLine("[ANT] phase shift compensation enabled", "system");
-  writeLine(`[ANT] CODE ${state.mini4Word}`, "success");
+  writeLine(`[ANT] CODE ${state.mini4Codes[0]}`, "system");
+  writeLine(`[ANT] CODE ${state.mini4Codes[1]}`, "system");
+  writeLine(`[ANT] CODE ${state.mini4Codes[2]}`, "system");
   writeLine("[ANT] waiting for alignment token...", "system");
 }
 
@@ -800,9 +814,9 @@ function printHelp() {
     writeLine(`Активные мини-игры этой сессии: ${state.firstStageSelected.join(", ")}`, "system");
     const hints = {
       mini1: "В сигнальных строках есть ключ, который нужно декодировать.",
-      mini2: "Импульсы идут по seed из первой игры; удерживай правильный порядок.",
-      mini3: "Ищи аномальный packet-id: след из прошлой игры спрятан в идентификаторах.",
-      mini4: "Код связан с packet-id предыдущей игры; считай шум антенны внимательно.",
+      mini2: "Импульсы заблокированы, нужен токен из первой игры для раскрытия последовательности.",
+      mini3: "Аномалий несколько, но нужный packet-id связан с итогом импульсов.",
+      mini4: "В шуме несколько CODE, но только один связан с packet-id прошлой игры.",
       mini5: "Слабый канал совпадает с ключом из выравнивания, scan помогает подтвердить.",
     };
     if (current) writeLine(`Подсказка текущей игры: ${hints[current]}`, "system");
@@ -1012,12 +1026,13 @@ function handleCommand(raw) {
     const argRaw = cmd.slice(5).trim();
     const arg = argRaw.toLowerCase();
     if (state.activeMini === "mini5") {
-      if (!state.mini5Channels.includes(arg)) {
+      const channelMatch = state.mini5Channels.find((ch) => ch.toLowerCase() === arg);
+      if (!channelMatch) {
         writeLine("Канал не найден в списке mini5.", "error");
         return;
       }
-      state.mini5Scanned[arg] = true;
-      writeLine(`${arg} :: integrity ${state.mini5Integrity[arg]}%`, "system");
+      state.mini5Scanned[channelMatch] = true;
+      writeLine(`${channelMatch} :: integrity ${state.mini5Integrity[channelMatch]}%`, "system");
       return;
     }
     if (state.activeMini === "mini6") {
@@ -1108,6 +1123,7 @@ function handleCommand(raw) {
     if (!state.mini1Code) return writeLine("Сначала запусти mini1.", "error");
     if (value === state.mini1Code) {
       state.chainSig = value.slice(-2).toLowerCase();
+      state.chainSigFull = value.toLowerCase();
       registerMiniSuccess("mini1", 20);
       playMiniSuccessNoise("mini1");
       writeLine("MINI #1 пройдена.", "success");
@@ -1123,6 +1139,7 @@ function handleCommand(raw) {
   if (lower.startsWith("pulse ")) {
     if (!canStartMini("mini2")) return;
     if (!state.mini2Sequence.length) return writeLine("Сначала запусти mini2.", "error");
+    if (!state.mini2Armed) return writeLine("Импульсы заблокированы. Нужен unlockpulse <token>.", "error");
     const value = Number(cmd.slice(6).trim());
     const expected = state.mini2Sequence[state.mini2Step];
     if (value === expected) {
@@ -1149,6 +1166,21 @@ function handleCommand(raw) {
     return;
   }
 
+  if (lower.startsWith("unlockpulse ")) {
+    if (!canStartMini("mini2")) return;
+    if (!state.mini2Sequence.length) return writeLine("Сначала запусти mini2.", "error");
+    const token = cmd.slice(12).trim().toLowerCase();
+    if (!state.chainSigFull) return writeLine("Токен недоступен. Заверши mini1.", "error");
+    if (token === state.chainSigFull) {
+      state.mini2Armed = true;
+      writeLine("[SYNC] unlock accepted", "success");
+      writeLine(`Последовательность: ${state.mini2Sequence.join(" ")}`, "system");
+    } else {
+      if (!registerMiniError("mini2")) writeLine("Неверный unlock token.", "error");
+    }
+    return;
+  }
+
   if (lower.startsWith("checksum ")) {
     if (!canStartMini("mini3")) return;
     if (!state.mini3Needle) return writeLine("Сначала запусти mini3.", "error");
@@ -1166,6 +1198,7 @@ function handleCommand(raw) {
       if (!registerMiniError("mini3")) {
         state.mini3Needle = "";
         state.mini3Packets = [];
+        state.chainPacket = "";
         writeLine("Неверно, перезапусти mini3.", "error");
       }
     }
@@ -1185,6 +1218,7 @@ function handleCommand(raw) {
     } else {
       if (!registerMiniError("mini4")) {
         state.mini4Word = "";
+        state.mini4Codes = [];
         writeLine("Калибровка провалена, запусти mini4 снова.", "error");
       }
     }
