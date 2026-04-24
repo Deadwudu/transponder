@@ -23,13 +23,32 @@ const state = {
   mini3Target: 0,
   mini4Word: "",
   mini5Needle: "",
+  mini5Channels: [],
+  mini5Integrity: {},
+  mini5Scanned: {},
   mini6Needle: "",
+  mini6Sectors: [],
+  mini6Reflectivity: {},
+  mini6Scanned: {},
   ipMini1Code: "",
+  ipMini1Keys: [],
+  ipMini1Scanned: {},
   ipMini2Route: "",
+  ipMini2Routes: [],
+  ipMini2Scanned: {},
   ipMini3Mask: "",
+  ipMini3Ip: "",
   ipMini4Pin: "",
+  ipMini4Matrix: [],
+  ipMini4Probed: {},
   ipMini5Needle: "",
+  ipMini5Users: [],
+  ipMini5Score: {},
+  ipMini5Scanned: {},
   ipMini6Needle: "",
+  ipMini6Files: [],
+  ipMini6Score: {},
+  ipMini6Scanned: {},
   currentDir: "/",
   clientsData: "",
   activeMini: "",
@@ -69,6 +88,67 @@ function writeLine(text, type = "system") {
   line.textContent = text;
   output.appendChild(line);
   output.scrollTop = output.scrollHeight;
+}
+
+function playActivity(tag) {
+  const base = [
+    `[${tag}] init sequence...`,
+    `[${tag}] entropy seed: 0x${randomCode(8, "0123456789ABCDEF")}`,
+    `[${tag}] sync offset: ${Math.floor(Math.random() * 90) + 10}ms`,
+  ];
+
+  const techByTag = {
+    LINK: [
+      "[NET] tcp handshake -> SYN",
+      "[NET] tcp handshake -> SYN/ACK",
+      "[NET] session promoted to secure tunnel",
+    ],
+    BREACH: [
+      "[CORE] bypassing auth gate...",
+      "[CORE] hash collision accepted",
+      "[CORE] privilege token injected",
+    ],
+    TUNNEL: [
+      "[NET] route map loaded",
+      "[NET] packet jitter normalized",
+      "[NET] tunnel stabilized",
+    ],
+  };
+
+  const generic = [
+    `[${tag}] parsing frame table...`,
+    `[${tag}] cache lines warmed`,
+    `[${tag}] checksum OK`,
+  ];
+
+  const extra = techByTag[tag] || generic;
+  const noisePool = [
+    "[WARN] packet loss 2.1%, retrying",
+    "[WARN] unstable clock drift detected",
+    "[ERR] stale cache segment, rebuilding",
+    "[WARN] relay heartbeat delayed",
+    "[ERR] temporary checksum mismatch",
+    "[WARN] jitter spike observed",
+  ];
+  const recoveryPool = [
+    "[RECOVERY] retransmit succeeded",
+    "[RECOVERY] clock realigned",
+    "[RECOVERY] cache rebuilt",
+    "[RECOVERY] fallback relay engaged",
+    "[RECOVERY] checksum normalized",
+  ];
+  const noiseLines = [];
+  const noiseCount = Math.random() < 0.55 ? 2 : 1;
+  for (let i = 0; i < noiseCount; i += 1) {
+    noiseLines.push(randomFrom(noisePool));
+    if (Math.random() < 0.8) noiseLines.push(randomFrom(recoveryPool));
+  }
+  const trailer = [`[${tag}] completed.`];
+  const steps = [...base, ...extra, ...noiseLines, ...trailer];
+  steps.forEach((line, idx) => {
+    const type = line.startsWith("[ERR]") ? "error" : line.startsWith("[WARN]") ? "system" : "system";
+    setTimeout(() => writeLine(line, type), idx * 170);
+  });
 }
 
 function getPromptPath() {
@@ -128,14 +208,49 @@ function clearMiniState(miniKey) {
   }
   if (miniKey === "mini3") state.mini3Target = 0;
   if (miniKey === "mini4") state.mini4Word = "";
-  if (miniKey === "mini5") state.mini5Needle = "";
+  if (miniKey === "mini5") {
+    state.mini5Needle = "";
+    state.mini5Channels = [];
+    state.mini5Integrity = {};
+    state.mini5Scanned = {};
+  }
   if (miniKey === "mini6") state.mini6Needle = "";
+  if (miniKey === "mini6") {
+    state.mini6Sectors = [];
+    state.mini6Reflectivity = {};
+    state.mini6Scanned = {};
+  }
   if (miniKey === "ipmini1") state.ipMini1Code = "";
-  if (miniKey === "ipmini2") state.ipMini2Route = "";
-  if (miniKey === "ipmini3") state.ipMini3Mask = "";
-  if (miniKey === "ipmini4") state.ipMini4Pin = "";
-  if (miniKey === "ipmini5") state.ipMini5Needle = "";
-  if (miniKey === "ipmini6") state.ipMini6Needle = "";
+  if (miniKey === "ipmini1") {
+    state.ipMini1Keys = [];
+    state.ipMini1Scanned = {};
+  }
+  if (miniKey === "ipmini2") {
+    state.ipMini2Route = "";
+    state.ipMini2Routes = [];
+    state.ipMini2Scanned = {};
+  }
+  if (miniKey === "ipmini3") {
+    state.ipMini3Mask = "";
+    state.ipMini3Ip = "";
+  }
+  if (miniKey === "ipmini4") {
+    state.ipMini4Pin = "";
+    state.ipMini4Matrix = [];
+    state.ipMini4Probed = {};
+  }
+  if (miniKey === "ipmini5") {
+    state.ipMini5Needle = "";
+    state.ipMini5Users = [];
+    state.ipMini5Score = {};
+    state.ipMini5Scanned = {};
+  }
+  if (miniKey === "ipmini6") {
+    state.ipMini6Needle = "";
+    state.ipMini6Files = [];
+    state.ipMini6Score = {};
+    state.ipMini6Scanned = {};
+  }
 }
 
 function miniStageMeta(miniKey) {
@@ -250,98 +365,184 @@ function startMini4() {
 
 function startMini5() {
   state.activeMini = "mini5";
-  const channels = [
-    `rf-${randomCode(3, "0123456789")}`,
-    `rf-${randomCode(3, "0123456789")}`,
-    `rf-${randomCode(3, "0123456789")}`,
-    `rf-${randomCode(3, "0123456789")}`,
-    `rf-${randomCode(3, "0123456789")}`,
-    `rf-${randomCode(3, "0123456789")}`,
-  ];
-  state.mini5Needle = randomFrom(channels);
+  const channels = [];
+  while (channels.length < 6) {
+    const ch = `rf-${randomCode(3, "0123456789")}`;
+    if (!channels.includes(ch)) channels.push(ch);
+  }
+  state.mini5Channels = channels;
+  state.mini5Integrity = {};
+  state.mini5Scanned = {};
+  let weakest = channels[0];
+  let weakestIntegrity = 100;
+  channels.forEach((ch) => {
+    const integrity = Math.floor(Math.random() * 56) + 35;
+    state.mini5Integrity[ch] = integrity;
+    state.mini5Scanned[ch] = false;
+    if (integrity < weakestIntegrity) {
+      weakestIntegrity = integrity;
+      weakest = ch;
+    }
+  });
+  state.mini5Needle = weakest;
   writeLine("MINI #5 :: Поиск уязвимого канала", "success");
   writeLine(`Список каналов: ${channels.join(", ")}`, "system");
-  writeLine(`Цель: ${state.mini5Needle}`, "system");
 }
 
 function startMini6() {
   state.activeMini = "mini6";
-  const sectors = [
-    `sector-${randomCode(2, "ABCDEFGH")}`,
-    `sector-${randomCode(2, "ABCDEFGH")}`,
-    `sector-${randomCode(2, "ABCDEFGH")}`,
-    `sector-${randomCode(2, "ABCDEFGH")}`,
-    `sector-${randomCode(2, "ABCDEFGH")}`,
-    `sector-${randomCode(2, "ABCDEFGH")}`,
-    `sector-${randomCode(2, "ABCDEFGH")}`,
-  ];
-  state.mini6Needle = randomFrom(sectors);
+  const sectors = [];
+  while (sectors.length < 7) {
+    const sector = `sector-${randomCode(2, "ABCDEFGH")}`;
+    if (!sectors.includes(sector)) sectors.push(sector);
+  }
+  state.mini6Sectors = sectors;
+  state.mini6Reflectivity = {};
+  state.mini6Scanned = {};
+  let weakest = sectors[0];
+  let weakestReflectivity = 100;
+  sectors.forEach((sector) => {
+    const reflectivity = Math.floor(Math.random() * 56) + 35;
+    state.mini6Reflectivity[sector] = reflectivity;
+    state.mini6Scanned[sector] = false;
+    if (reflectivity < weakestReflectivity) {
+      weakestReflectivity = reflectivity;
+      weakest = sector;
+    }
+  });
+  state.mini6Needle = weakest;
   writeLine("MINI #6 :: Поиск сектора отражения", "success");
   writeLine(`Карта секторов: ${sectors.join(" | ")}`, "system");
-  writeLine(`Цель: ${state.mini6Needle}`, "system");
 }
 
 function startIpMini1() {
   state.activeMini = "ipmini1";
-  state.ipMini1Code = randomCode(6, "0123456789ABCDEF");
+  playActivity("IP MINI #1");
+  const keys = [];
+  while (keys.length < 5) {
+    const key = randomCode(6, "0123456789ABCDEF");
+    if (!keys.includes(key)) keys.push(key);
+  }
+  state.ipMini1Code = randomFrom(keys);
+  state.ipMini1Keys = keys;
+  state.ipMini1Scanned = {};
+  keys.forEach((k) => { state.ipMini1Scanned[k] = false; });
   writeLine("IP MINI #1 :: HEX-шлюз", "success");
-  writeLine(`Ключ шлюза: ${state.ipMini1Code}`, "system");
+  writeLine(`Кандидаты ключа: ${keys.join(", ")}`, "system");
 }
 
 function startIpMini2() {
   state.activeMini = "ipmini2";
-  state.ipMini2Route = `${Math.floor(Math.random() * 200) + 20}-${Math.floor(Math.random() * 200) + 20}-${Math.floor(Math.random() * 200) + 20}`;
+  playActivity("IP MINI #2");
+  const routes = [];
+  while (routes.length < 5) {
+    const route = `${Math.floor(Math.random() * 200) + 20}-${Math.floor(Math.random() * 200) + 20}-${Math.floor(Math.random() * 200) + 20}`;
+    if (!routes.includes(route)) routes.push(route);
+  }
+  state.ipMini2Route = randomFrom(routes);
+  state.ipMini2Routes = routes;
+  state.ipMini2Scanned = {};
+  routes.forEach((r) => { state.ipMini2Scanned[r] = false; });
   writeLine("IP MINI #2 :: Маршрутизатор", "success");
-  writeLine(`Маршрут найден: ${state.ipMini2Route}`, "system");
+  writeLine(`Кандидаты маршрута: ${routes.join(", ")}`, "system");
 }
 
 function startIpMini3() {
   state.activeMini = "ipmini3";
-  const masks = ["255.255.255.0", "255.255.0.0", "255.255.248.0", "255.255.240.0"];
-  state.ipMini3Mask = randomFrom(masks);
+  playActivity("IP MINI #3");
+  const first = Math.floor(Math.random() * 223) + 1;
+  const second = Math.floor(Math.random() * 256);
+  const third = Math.floor(Math.random() * 256);
+  const fourth = Math.floor(Math.random() * 256);
+  state.ipMini3Ip = `${first}.${second}.${third}.${fourth}`;
+  if (first <= 126) state.ipMini3Mask = "255.0.0.0";
+  else if (first <= 191) state.ipMini3Mask = "255.255.0.0";
+  else state.ipMini3Mask = "255.255.255.0";
   writeLine("IP MINI #3 :: Маска подсети", "success");
-  writeLine(`Активная маска: ${state.ipMini3Mask}`, "system");
+  writeLine(`Определи маску для IP: ${state.ipMini3Ip}`, "system");
 }
 
 function startIpMini4() {
   state.activeMini = "ipmini4";
-  state.ipMini4Pin = randomCode(4, "0123456789");
+  playActivity("IP MINI #4");
+  const matrix = [];
+  const pin = [];
+  for (let row = 0; row < 4; row += 1) {
+    const rowValues = [];
+    for (let col = 0; col < 4; col += 1) {
+      const digit = randomCode(1, "0123456789");
+      rowValues.push(digit);
+    }
+    matrix.push(rowValues);
+  }
+  for (let i = 0; i < 4; i += 1) {
+    const digit = randomCode(1, "0123456789");
+    matrix[i][i] = digit;
+    pin.push(digit);
+  }
+  state.ipMini4Pin = pin.join("");
+  state.ipMini4Matrix = matrix;
+  state.ipMini4Probed = {};
   writeLine("IP MINI #4 :: PIN-барьер", "success");
-  writeLine(`Получен PIN: ${state.ipMini4Pin}`, "system");
+  writeLine("    1  2  3  4", "system");
+  writeLine(`A   ${matrix[0].join("  ")}`, "system");
+  writeLine(`B   ${matrix[1].join("  ")}`, "system");
+  writeLine(`C   ${matrix[2].join("  ")}`, "system");
+  writeLine(`D   ${matrix[3].join("  ")}`, "system");
 }
 
 function startIpMini5() {
   state.activeMini = "ipmini5";
-  const users = [
-    `svc_${randomCode(4, "abcdefghijklmnopqrstuvwxyz")}`,
-    `svc_${randomCode(4, "abcdefghijklmnopqrstuvwxyz")}`,
-    `svc_${randomCode(4, "abcdefghijklmnopqrstuvwxyz")}`,
-    `svc_${randomCode(4, "abcdefghijklmnopqrstuvwxyz")}`,
-    `svc_${randomCode(4, "abcdefghijklmnopqrstuvwxyz")}`,
-    `svc_${randomCode(4, "abcdefghijklmnopqrstuvwxyz")}`,
-    `svc_${randomCode(4, "abcdefghijklmnopqrstuvwxyz")}`,
-  ];
-  state.ipMini5Needle = randomFrom(users);
+  playActivity("IP MINI #5");
+  const users = [];
+  while (users.length < 7) {
+    const user = `svc_${randomCode(4, "abcdefghijklmnopqrstuvwxyz")}`;
+    if (!users.includes(user)) users.push(user);
+  }
+  state.ipMini5Users = users;
+  state.ipMini5Score = {};
+  state.ipMini5Scanned = {};
+  let weakest = users[0];
+  let weakestScore = 100;
+  users.forEach((u) => {
+    const score = Math.floor(Math.random() * 56) + 35;
+    state.ipMini5Score[u] = score;
+    state.ipMini5Scanned[u] = false;
+    if (score < weakestScore) {
+      weakestScore = score;
+      weakest = u;
+    }
+  });
+  state.ipMini5Needle = weakest;
   writeLine("IP MINI #5 :: Поиск сервисного аккаунта", "success");
   writeLine(`Список аккаунтов: ${users.join(", ")}`, "system");
-  writeLine(`Цель: ${state.ipMini5Needle}`, "system");
 }
 
 function startIpMini6() {
   state.activeMini = "ipmini6";
-  const files = [
-    `cache_${randomCode(3, "0123456789")}.bin`,
-    `dump_${randomCode(3, "0123456789")}.tmp`,
-    `core_${randomCode(3, "0123456789")}.log`,
-    `mirror_${randomCode(3, "0123456789")}.key`,
-    `node_${randomCode(3, "0123456789")}.map`,
-    `seed_${randomCode(3, "0123456789")}.dat`,
-    `frag_${randomCode(3, "0123456789")}.pkg`,
-  ];
-  state.ipMini6Needle = randomFrom(files);
+  playActivity("IP MINI #6");
+  const files = [];
+  while (files.length < 7) {
+    const file = `${randomFrom(["cache", "dump", "core", "mirror", "node", "seed", "frag"])}_${randomCode(3, "0123456789")}.${randomFrom(["bin", "tmp", "log", "key", "map", "dat", "pkg"])}`;
+    if (!files.includes(file)) files.push(file);
+  }
+  state.ipMini6Files = files;
+  state.ipMini6Score = {};
+  state.ipMini6Scanned = {};
+  let weakest = files[0];
+  let weakestScore = 100;
+  files.forEach((f) => {
+    const score = Math.floor(Math.random() * 56) + 35;
+    state.ipMini6Score[f] = score;
+    state.ipMini6Scanned[f] = false;
+    if (score < weakestScore) {
+      weakestScore = score;
+      weakest = f;
+    }
+  });
+  state.ipMini6Needle = weakest;
   writeLine("IP MINI #6 :: Поиск целевого артефакта", "success");
   writeLine(`Список файлов: ${files.join(" ; ")}`, "system");
-  writeLine(`Цель: ${state.ipMini6Needle}`, "system");
 }
 
 function canBreachTransponder() {
@@ -378,7 +579,7 @@ function listDirectory(path) {
 function printHelp() {
   writeLine("Linux-подобные команды: help, status, clear, pwd, ls, ls -la, cd, cat, tree, whoami, uname", "success");
   writeLine("Игровые команды: scan, connect, mini1..mini6, breach, hack ip, ipmini1..ipmini6", "system");
-  writeLine("Ответы мини-игр: decode, pulse, checksum, align, findch, findsector, unlock, route, mask, crack, finduser, findfile", "system");
+  writeLine("Ответы мини-игр: decode, pulse, checksum, align, scan <target>, findch, findsector, unlock, route, mask, probe <coord>, crack, finduser, findfile", "system");
   writeLine("Правило: мини-игры идут строго по порядку. 5 ошибок в одной мини-игре = откат на предыдущую.", "system");
 
   if (!state.scanComplete) {
@@ -392,7 +593,7 @@ function printHelp() {
   if (!allDone(state.firstStageDone)) {
     const remaining = FIRST_STAGE_MINI.filter((k) => !state.firstStageDone[k]).join(", ");
     writeLine(`Что делать сейчас: пройти мини-игры этапа 1 (${remaining})`, "success");
-    writeLine("Формат этапа 1: decode <code>, pulse <digit>, checksum <num>, align <word>, findch <value>, findsector <value>", "system");
+    writeLine("Формат этапа 1: decode <code>, pulse <digit>, checksum <num>, align <word>, scan <channel>, findch <value>, findsector <value>", "system");
     writeLine("После прохождения: breach", "system");
     return;
   }
@@ -407,7 +608,7 @@ function printHelp() {
   if (!allDone(state.ipStageDone)) {
     const remaining = IP_STAGE_MINI.filter((k) => !state.ipStageDone[k]).join(", ");
     writeLine(`Что делать сейчас: пройти IP мини-игры (${remaining})`, "success");
-    writeLine("Формат IP этапа: unlock <hex>, route <route>, mask <mask>, crack <pin>, finduser <name>, findfile <name>", "system");
+    writeLine("Формат IP этапа: scan <target>, unlock <hex>, route <route>, mask <mask>, probe <coord>, crack <pin>, finduser <name>, findfile <name>", "system");
     writeLine("После этого: cd /data && cat clients", "system");
     return;
   }
@@ -575,11 +776,79 @@ function handleCommand(raw) {
   }
 
   if (lower === "scan") {
+    if (["mini5", "mini6", "ipmini1", "ipmini2", "ipmini5", "ipmini6"].includes(state.activeMini)) {
+      writeLine("В этой мини-игре используй scan <target>.", "error");
+      return;
+    }
     if (state.scanComplete) return writeLine("Разведка уже выполнена.", "system");
     state.scanComplete = true;
     state.phase = Math.max(state.phase, 1);
     gain(10);
     writeLine("Сканирование завершено: обнаружены открытые каналы.", "success");
+    return;
+  }
+
+  if (lower.startsWith("scan ")) {
+    const arg = cmd.slice(5).trim().toLowerCase();
+    if (state.activeMini === "mini5") {
+      if (!state.mini5Channels.includes(arg)) {
+        writeLine("Канал не найден в списке mini5.", "error");
+        return;
+      }
+      state.mini5Scanned[arg] = true;
+      writeLine(`${arg} :: integrity ${state.mini5Integrity[arg]}%`, "system");
+      return;
+    }
+    if (state.activeMini === "mini6") {
+      if (!state.mini6Sectors.includes(arg)) {
+        writeLine("Сектор не найден в списке mini6.", "error");
+        return;
+      }
+      state.mini6Scanned[arg] = true;
+      writeLine(`${arg} :: reflectivity ${state.mini6Reflectivity[arg]}%`, "system");
+      return;
+    }
+    if (state.activeMini === "ipmini1") {
+      const raw = cmd.slice(5).trim().toUpperCase();
+      if (!state.ipMini1Keys.includes(raw)) {
+        writeLine("Ключ не найден в списке ipmini1.", "error");
+        return;
+      }
+      state.ipMini1Scanned[raw] = true;
+      const status = raw === state.ipMini1Code ? "MATCH" : "REJECT";
+      writeLine(`${raw} :: ${status}`, raw === state.ipMini1Code ? "success" : "system");
+      return;
+    }
+    if (state.activeMini === "ipmini2") {
+      const raw = cmd.slice(5).trim();
+      if (!state.ipMini2Routes.includes(raw)) {
+        writeLine("Маршрут не найден в списке ipmini2.", "error");
+        return;
+      }
+      state.ipMini2Scanned[raw] = true;
+      const status = raw === state.ipMini2Route ? "LATENCY 11ms" : `LATENCY ${Math.floor(Math.random() * 80) + 45}ms`;
+      writeLine(`${raw} :: ${status}`, raw === state.ipMini2Route ? "success" : "system");
+      return;
+    }
+    if (state.activeMini === "ipmini5") {
+      if (!state.ipMini5Users.includes(arg)) {
+        writeLine("Аккаунт не найден в списке ipmini5.", "error");
+        return;
+      }
+      state.ipMini5Scanned[arg] = true;
+      writeLine(`${arg} :: vuln-score ${state.ipMini5Score[arg]}%`, "system");
+      return;
+    }
+    if (state.activeMini === "ipmini6") {
+      if (!state.ipMini6Files.includes(arg)) {
+        writeLine("Файл не найден в списке ipmini6.", "error");
+        return;
+      }
+      state.ipMini6Scanned[arg] = true;
+      writeLine(`${arg} :: exposure ${state.ipMini6Score[arg]}%`, "system");
+      return;
+    }
+    writeLine("scan <target> доступна в mini5/mini6/ipmini1/ipmini2/ipmini5/ipmini6.", "error");
     return;
   }
 
@@ -589,6 +858,7 @@ function handleCommand(raw) {
     state.connected = true;
     state.phase = Math.max(state.phase, 2);
     gain(10);
+    playActivity("LINK");
     writeLine("Подключение установлено. Требуется пройти 6 проверок по порядку.", "success");
     return;
   }
@@ -674,8 +944,13 @@ function handleCommand(raw) {
 
   if (lower.startsWith("findch ")) {
     if (!canStartMini("mini5")) return;
-    const val = cmd.slice(7).trim();
+    const val = cmd.slice(7).trim().toLowerCase();
     if (!state.mini5Needle) return writeLine("Сначала запусти mini5.", "error");
+    const allScanned = state.mini5Channels.length > 0 && state.mini5Channels.every((ch) => state.mini5Scanned[ch]);
+    if (!allScanned) {
+      writeLine("Сначала просканируй все каналы через scan <channel>.", "error");
+      return;
+    }
     if (val === state.mini5Needle) {
       registerMiniSuccess("mini5", 20);
       writeLine("MINI #5 пройдена.", "success");
@@ -690,8 +965,13 @@ function handleCommand(raw) {
 
   if (lower.startsWith("findsector ")) {
     if (!canStartMini("mini6")) return;
-    const val = cmd.slice(11).trim();
+    const val = cmd.slice(11).trim().toLowerCase();
     if (!state.mini6Needle) return writeLine("Сначала запусти mini6.", "error");
+    const allScanned = state.mini6Sectors.length > 0 && state.mini6Sectors.every((sector) => state.mini6Scanned[sector]);
+    if (!allScanned) {
+      writeLine("Сначала просканируй все сектора через scan <sector>.", "error");
+      return;
+    }
     if (val === state.mini6Needle) {
       registerMiniSuccess("mini6", 20);
       writeLine("MINI #6 пройдена.", "success");
@@ -711,6 +991,7 @@ function handleCommand(raw) {
     state.phase = Math.max(state.phase, 3);
     state.ip = `185.73.${Math.floor(Math.random() * 120) + 10}.${Math.floor(Math.random() * 220) + 20}`;
     gain(40);
+    playActivity("BREACH");
     writeLine("CORE ACCESS GRANTED", "success");
     writeLine(`Получен IP целевого узла: ${state.ip}`, "success");
     writeLine("Следующая команда: hack ip", "system");
@@ -723,6 +1004,7 @@ function handleCommand(raw) {
     state.ipAccessGranted = true;
     state.phase = Math.max(state.phase, 4);
     gain(20);
+    playActivity("TUNNEL");
     writeLine(`Туннель к ${state.ip} открыт. Система показывает файловую структуру.`, "success");
     writeLine("Сначала пройди 6 IP мини-игр: ipmini1..ipmini6", "system");
     writeLine("После этого открой файл: cd data -> cat clients", "system");
@@ -764,8 +1046,7 @@ function handleCommand(raw) {
       writeLine("IP MINI #1 пройдена.", "success");
     } else {
       if (!registerMiniError("ipmini1")) {
-        state.ipMini1Code = "";
-        writeLine("Неверный HEX, запусти ipmini1 снова.", "error");
+        writeLine("Неверный HEX.", "error");
       }
     }
     return;
@@ -780,8 +1061,7 @@ function handleCommand(raw) {
       writeLine("IP MINI #2 пройдена.", "success");
     } else {
       if (!registerMiniError("ipmini2")) {
-        state.ipMini2Route = "";
-        writeLine("Маршрут не совпал, запусти ipmini2 снова.", "error");
+        writeLine("Маршрут не совпал.", "error");
       }
     }
     return;
@@ -796,10 +1076,30 @@ function handleCommand(raw) {
       writeLine("IP MINI #3 пройдена.", "success");
     } else {
       if (!registerMiniError("ipmini3")) {
-        state.ipMini3Mask = "";
-        writeLine("Маска неверна, запусти ipmini3 снова.", "error");
+        writeLine("Маска неверна.", "error");
       }
     }
+    return;
+  }
+
+  if (lower.startsWith("probe ")) {
+    const coordRaw = cmd.slice(6).trim().toUpperCase();
+    if (!canStartMini("ipmini4")) return;
+    if (!state.ipMini4Matrix.length) return writeLine("Сначала ipmini4.", "error");
+    let coord = coordRaw;
+    if (/^[ABCD][1-4][1-4]$/.test(coordRaw) && coordRaw[1] === coordRaw[2]) {
+      coord = `${coordRaw[0]}${coordRaw[1]}`;
+    }
+    if (!/^[ABCD][1-4]$/.test(coord)) {
+      writeLine("Формат координаты: A1..D4", "error");
+      return;
+    }
+    const row = coord.charCodeAt(0) - 65;
+    const col = Number(coord[1]) - 1;
+    const value = state.ipMini4Matrix[row][col];
+    state.ipMini4Probed[coord] = true;
+    const diagonal = row === col;
+    writeLine(`${coord} => ${value} ${diagonal ? "[diag]" : ""}`.trim(), diagonal ? "success" : "system");
     return;
   }
 
@@ -807,6 +1107,10 @@ function handleCommand(raw) {
     const val = cmd.slice(6).trim();
     if (!canStartMini("ipmini4")) return;
     if (!state.ipMini4Pin) return writeLine("Сначала ipmini4.", "error");
+    if (Object.keys(state.ipMini4Probed).length < 4) {
+      writeLine("Недостаточно данных. Используй probe <coord> для расшифровки матрицы.", "error");
+      return;
+    }
     if (val === state.ipMini4Pin) {
       registerMiniSuccess("ipmini4", 20);
       writeLine("IP MINI #4 пройдена.", "success");
@@ -815,17 +1119,21 @@ function handleCommand(raw) {
       }
     } else {
       if (!registerMiniError("ipmini4")) {
-        state.ipMini4Pin = "";
-        writeLine("PIN отклонен, запусти ipmini4 снова.", "error");
+        writeLine("PIN отклонен.", "error");
       }
     }
     return;
   }
 
   if (lower.startsWith("finduser ")) {
-    const val = cmd.slice(9).trim();
+    const val = cmd.slice(9).trim().toLowerCase();
     if (!canStartMini("ipmini5")) return;
     if (!state.ipMini5Needle) return writeLine("Сначала ipmini5.", "error");
+    const allScanned = state.ipMini5Users.length > 0 && state.ipMini5Users.every((u) => state.ipMini5Scanned[u]);
+    if (!allScanned) {
+      writeLine("Сначала просканируй все аккаунты через scan <user>.", "error");
+      return;
+    }
     if (val === state.ipMini5Needle) {
       registerMiniSuccess("ipmini5", 20);
       writeLine("IP MINI #5 пройдена.", "success");
@@ -834,17 +1142,21 @@ function handleCommand(raw) {
       }
     } else {
       if (!registerMiniError("ipmini5")) {
-        state.ipMini5Needle = "";
-        writeLine("Аккаунт не найден, запусти ipmini5 снова.", "error");
+        writeLine("Аккаунт не найден.", "error");
       }
     }
     return;
   }
 
   if (lower.startsWith("findfile ")) {
-    const val = cmd.slice(9).trim();
+    const val = cmd.slice(9).trim().toLowerCase();
     if (!canStartMini("ipmini6")) return;
     if (!state.ipMini6Needle) return writeLine("Сначала ipmini6.", "error");
+    const allScanned = state.ipMini6Files.length > 0 && state.ipMini6Files.every((f) => state.ipMini6Scanned[f]);
+    if (!allScanned) {
+      writeLine("Сначала просканируй все файлы через scan <file>.", "error");
+      return;
+    }
     if (val === state.ipMini6Needle) {
       registerMiniSuccess("ipmini6", 20);
       writeLine("IP MINI #6 пройдена.", "success");
@@ -853,8 +1165,7 @@ function handleCommand(raw) {
       }
     } else {
       if (!registerMiniError("ipmini6")) {
-        state.ipMini6Needle = "";
-        writeLine("Файл не найден, запусти ipmini6 снова.", "error");
+        writeLine("Файл не найден.", "error");
       }
     }
     return;
