@@ -700,7 +700,6 @@ function startIpMini5() {
   writeLine("IP MINI #5 :: Поиск сервисного аккаунта", "success");
   if (state.ipChainSvcTag) {
     writeLine(`[AUTH] tail-vector **${state.ipChainSvcTag}`, "system");
-    writeLine(`[AUTH] target rule :: ищи аккаунт, который оканчивается на **${state.ipChainSvcTag}`, "system");
   }
   writeLine(`Список аккаунтов: ${users.join(", ")}`, "system");
 }
@@ -738,7 +737,6 @@ function startIpMini6() {
   writeLine("IP MINI #6 :: Поиск целевого артефакта", "success");
   if (state.ipChainFileTag) {
     writeLine(`[ERR] inode drift :: expected file tail **${state.ipChainFileTag}`, "error");
-    writeLine(`[FS] target rule :: ищи frag_*.pkg с хвостом **${state.ipChainFileTag}`, "system");
   }
   writeLine(`Список файлов: ${files.join(" ; ")}`, "system");
 }
@@ -831,7 +829,7 @@ function printHelp() {
       ipmini3: "Смотри class-vector и выбери правильную маску из предложенных вариантов.",
       ipmini4: "PIN уже мелькал в шуме после ipmini3; можно сразу crack, probe нужен только для проверки.",
       ipmini5: "Смотри хвост **xx из ipmini4: в ipmini5 нужен аккаунт, который оканчивается на этот хвост.",
-      ipmini6: "Смотри file tail **xx из ipmini5: в ipmini6 нужен frag_*.pkg с таким хвостом.",
+      ipmini6: "Ориентируйся на file tail из прошлой игры и сверяй его через scan по списку файлов.",
     };
     const ipCommands = {
       ipmini1: "scan <hex>, unlock <hex>",
@@ -1416,7 +1414,6 @@ function handleCommand(raw) {
       registerMiniSuccess("ipmini4", 20);
       playMiniSuccessNoise("ipmini4");
       writeLine(`[ERR] acct-index drift :: expected tail **${state.ipChainSvcTag}`, "error");
-      writeLine(`[AUTH] next target :: в ipmini5 ищи аккаунт с хвостом **${state.ipChainSvcTag}`, "system");
       writeLine("IP MINI #4 пройдена.", "success");
     } else {
       if (!registerMiniError("ipmini4")) {
@@ -1435,7 +1432,6 @@ function handleCommand(raw) {
       registerMiniSuccess("ipmini5", 20);
       playMiniSuccessNoise("ipmini5");
       writeLine(`[ERR] fs-queue mismatch :: next file tail **${state.ipChainFileTag}`, "error");
-      writeLine(`[FS] next target :: в ipmini6 ищи frag_*.pkg с хвостом **${state.ipChainFileTag}`, "system");
       writeLine("IP MINI #5 пройдена.", "success");
     } else {
       if (!registerMiniError("ipmini5")) {
